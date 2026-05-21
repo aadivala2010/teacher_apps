@@ -25,7 +25,6 @@ import table_app
 
 ROOT = Path(__file__).resolve().parent
 MAX_UPLOAD_BYTES = 80 * 1024 * 1024
-DUMMY_GEMINI_API_KEY = "AIzaSyCRYJh9Kk6Pvsq3P9uV8naLMV2XcgYf2E4"
 GEMINI_MODELS = ["gemini-2.5-flash-lite"]
 
 
@@ -163,7 +162,10 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
 
 
 def gemini_api_key() -> str:
-    return os.environ.get("GEMINI_API_KEY", DUMMY_GEMINI_API_KEY).strip()
+    value = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not value:
+        raise ValueError("GEMINI_API_KEY is not set. Add it in Vercel before using Book Theme Finder.")
+    return value
 
 
 def build_book_prompt(theme: str) -> str:
