@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/*.py": {
+    "api/**/*.py": {
       "maxDuration": 30,
       "excludeFiles": "{build/**,dist/**,downloads/**,.smoke_transfer/**,__pycache__/**,**/*.pyc}"
     }
