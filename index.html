@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Teacher Tools</title>
+    <meta
+      name="description"
+      content="A teacher tools portfolio with Lesson Plan Copier available directly in the browser."
+    />
+    <link rel="stylesheet" href="styles.css?v=2" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Teacher apps">
+        <div class="brand">
+          <img src="assets/lesson-plan-copier-icon.png" alt="" />
+          <div>
+            <p>Teacher Tools</p>
+            <strong>Classroom utilities</strong>
+          </div>
+        </div>
+
+        <nav class="tool-list" aria-label="Available apps">
+          <button class="tool-link active" type="button" data-tool="copier">
+            <span>Lesson Plan Copier</span>
+            <small>DOCX to PDF</small>
+          </button>
+          <button class="tool-link" type="button" data-tool="books">
+            <span>Book Theme Finder</span>
+            <small>Gemini AI</small>
+          </button>
+          <button class="tool-link disabled" type="button" disabled>
+            <span>More tools soon</span>
+            <small>Coming later</small>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="workspace">
+        <header class="workspace-header">
+          <div>
+            <p class="eyebrow">Ready to use</p>
+            <h1 id="workspaceTitle">Lesson Plan Copier</h1>
+          </div>
+          <div class="status-pill" id="serverStatus">Web app</div>
+        </header>
+
+        <section class="tool-surface tool-panel active" id="copierPanel" aria-labelledby="copierTitle">
+          <div class="tool-intro">
+            <h2 id="copierTitle">Copy highlighted cells into a PDF</h2>
+            <p>
+              Upload a filled lesson-plan DOCX and the matching blank PDF. The finished PDF downloads when processing is done.
+            </p>
+          </div>
+
+          <form id="copierForm" class="upload-form">
+            <label class="file-control">
+              <span>Filled DOCX</span>
+              <input id="docxInput" name="docx" type="file" accept=".docx" required />
+            </label>
+
+            <label class="file-control">
+              <span>Matching PDF</span>
+              <input id="pdfInput" name="pdf" type="file" accept=".pdf" required />
+            </label>
+
+            <label class="toggle-row">
+              <input id="coverExisting" name="coverExisting" type="checkbox" />
+              <span>Cover existing cell text before pasting</span>
+            </label>
+
+            <div class="form-actions">
+              <button id="submitButton" class="primary-button" type="submit">Create PDF</button>
+              <p id="formStatus" class="form-status" role="status" aria-live="polite">Waiting for files.</p>
+            </div>
+          </form>
+        </section>
+
+        <section class="tool-surface tool-panel" id="booksPanel" aria-labelledby="booksTitle">
+          <div class="tool-intro">
+            <h2 id="booksTitle">Find preschool books by theme</h2>
+            <p>
+              Enter a classroom theme and Gemini will suggest 10 preschool-friendly books with authors and short descriptions.
+            </p>
+          </div>
+
+          <form id="booksForm" class="upload-form">
+            <label class="file-control">
+              <span>Theme</span>
+              <input id="themeInput" name="theme" type="text" maxlength="120" placeholder="Ocean animals, friendship, weather..." required />
+            </label>
+
+            <div class="form-actions">
+              <button id="booksButton" class="primary-button" type="submit">Generate Books</button>
+              <p id="booksStatus" class="form-status" role="status" aria-live="polite">Waiting for a theme.</p>
+            </div>
+          </form>
+        </section>
+
+        <section id="bookResults" class="book-results" aria-live="polite"></section>
+
+        <section class="portfolio-row" aria-label="Portfolio">
+          <article>
+            <h2>Current App</h2>
+            <p>Lesson Plan Copier transfers only yellow-highlighted DOCX cells and replaces older pasted layers.</p>
+          </article>
+          <article>
+            <h2>For Teachers</h2>
+            <p>Tools here are built for classroom paperwork, planning, and repeatable school workflows.</p>
+          </article>
+          <article>
+            <h2>Next Apps</h2>
+            <p>Book Theme Finder is the first AI tool; the layout is ready for more teacher apps later.</p>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="script.js?v=2"></script>
+  </body>
+</html>

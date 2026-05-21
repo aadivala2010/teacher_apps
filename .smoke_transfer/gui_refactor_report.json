@@ -1,0 +1,11 @@
+{
+  "docx": "C:\\Users\\aadiv\\Desktop\\Productivity\\Coding Projects\\HTML Files\\app\\.smoke_transfer\\source.docx",
+  "pdf": "C:\\Users\\aadiv\\Desktop\\Productivity\\Coding Projects\\HTML Files\\app\\.smoke_transfer\\target.backup.pdf",
+  "output": "C:\\Users\\aadiv\\Desktop\\Productivity\\Coding Projects\\HTML Files\\app\\.smoke_transfer\\gui_refactor_test.pdf",
+  "updated_in_place": false,
+  "backup": null,
+  "method": "pdf-vector-lines",
+  "docx_cells": 4,
+  "pdf_cells_used": 4,
+  "pdf_cells_detected": 4
+}

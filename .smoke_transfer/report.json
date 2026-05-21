@@ -1,0 +1,9 @@
+{
+  "docx": "C:\\Users\\aadiv\\Desktop\\Productivity\\Coding Projects\\HTML Files\\app\\.smoke_transfer\\source.docx",
+  "pdf": "C:\\Users\\aadiv\\Desktop\\Productivity\\Coding Projects\\HTML Files\\app\\.smoke_transfer\\target.pdf",
+  "output": "C:\\Users\\aadiv\\Desktop\\Productivity\\Coding Projects\\HTML Files\\app\\.smoke_transfer\\target_filled.pdf",
+  "method": "pdf-vector-lines",
+  "docx_cells": 4,
+  "pdf_cells_used": 4,
+  "pdf_cells_detected": 4
+}
