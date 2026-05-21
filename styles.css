@@ -349,3 +349,14 @@ h1 {
     padding: 20px;
   }
 }
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #ffcc66, #ff8a5b);
+  color: #17324d;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
