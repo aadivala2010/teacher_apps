@@ -5,11 +5,11 @@
   "rewrites": [
     {
       "source": "/api/book-theme-finder",
-      "destination": "/api/book_theme_finder"
+      "destination": "/api/index?route=book-theme-finder"
     },
     {
       "source": "/api/lesson-plan-copier",
-      "destination": "/api/lesson_plan_copier"
+      "destination": "/api/index?route=lesson-plan-copier"
     }
   ]
 }
