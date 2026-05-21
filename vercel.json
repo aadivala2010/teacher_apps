@@ -1,5 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": null,
-  "outputDirectory": "."
+  "outputDirectory": ".",
+  "rewrites": [
+    {
+      "source": "/api/book-theme-finder",
+      "destination": "/api/book_theme_finder"
+    },
+    {
+      "source": "/api/lesson-plan-copier",
+      "destination": "/api/lesson_plan_copier"
+    }
+  ]
 }
