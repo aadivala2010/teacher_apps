@@ -33,7 +33,11 @@ class handler(BaseHTTPRequestHandler):
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
     def do_GET(self) -> None:
-        self.send_json({"error": "Use POST for this endpoint."}, HTTPStatus.METHOD_NOT_ALLOWED)
+        route = self.route_name()
+        if route in {"book-theme-finder", "lesson-plan-copier", "index"}:
+            self.send_json({"ok": True, "route": route, "method": "POST"})
+            return
+        self.send_json({"error": "Unknown API route."}, HTTPStatus.NOT_FOUND)
 
     def route_name(self) -> str:
         parsed = urlparse(self.path)
