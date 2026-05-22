@@ -96,7 +96,7 @@ form.addEventListener("submit", async (event) => {
   setStatus("Processing the lesson plan...");
 
   try {
-    const response = await fetch("/api/lesson-plan-copier", {
+    const response = await fetch("/api/index?route=lesson-plan-copier", {
       method: "POST",
       body: payload,
     });
@@ -138,7 +138,7 @@ booksForm.addEventListener("submit", async (event) => {
   setBookStatus("Asking Gemini for book ideas...");
 
   try {
-    const response = await fetch("/api/book-theme-finder", {
+    const response = await fetch("/api/index?route=book-theme-finder", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ theme }),

@@ -44,7 +44,12 @@ class handler(BaseHTTPRequestHandler):
         query_route = parse_qs(parsed.query).get("route", [""])[0]
         if query_route:
             return query_route
-        return parsed.path.rstrip("/").rsplit("/", 1)[-1]
+        path = parsed.path.rstrip("/")
+        if path.endswith("/book-theme-finder") or path.endswith("/book_theme_finder"):
+            return "book-theme-finder"
+        if path.endswith("/lesson-plan-copier") or path.endswith("/lesson_plan_copier"):
+            return "lesson-plan-copier"
+        return path.rsplit("/", 1)[-1]
 
     def handle_book_theme_finder(self) -> None:
         content_length = int(self.headers.get("Content-Length", "0"))
