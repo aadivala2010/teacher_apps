@@ -4,6 +4,10 @@
   "outputDirectory": "public",
   "rewrites": [
     {
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
       "source": "/api/book-theme-finder",
       "destination": "/api/index?route=book-theme-finder"
     },
