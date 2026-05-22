@@ -2,11 +2,14 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": null,
   "outputDirectory": "public",
-  "rewrites": [
+  "redirects": [
     {
       "source": "/",
-      "destination": "/index.html"
-    },
+      "destination": "/index.html",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
     {
       "source": "/api/book-theme-finder",
       "destination": "/api/index?route=book-theme-finder"
