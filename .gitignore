@@ -4,3 +4,6 @@ build/
 dist/
 downloads/
 .vercel/
+.tools/
+
+.vercel

@@ -1,0 +1,11 @@
+.git
+.tools
+.venv
+venv
+__pycache__
+*.pyc
+build
+dist
+downloads
+.smoke_transfer
+*.spec
