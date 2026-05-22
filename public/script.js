@@ -19,6 +19,10 @@ const panels = {
   books: booksPanel,
 };
 
+const isAppleTouchDevice =
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
 const titles = {
   copier: "Lesson Plan Copier",
   books: "Book Theme Finder",
@@ -63,6 +67,13 @@ toolButtons.forEach((button) => {
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
+
+  if (isAppleTouchDevice) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return;
+  }
+
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
@@ -116,7 +127,7 @@ form.addEventListener("submit", async (event) => {
 
     const blob = await response.blob();
     downloadBlob(blob, outputName(pdfFile));
-    setStatus("Done. The finished PDF downloaded.", "success");
+    setStatus(isAppleTouchDevice ? "Done. The finished PDF opened in a new tab." : "Done. The finished PDF downloaded.", "success");
   } catch (error) {
     setStatus(error.message || "Something went wrong.", "error");
   } finally {
