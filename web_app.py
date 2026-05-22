@@ -23,7 +23,7 @@ from urllib.error import HTTPError, URLError
 import table_app
 
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent / "public"
 MAX_UPLOAD_BYTES = 80 * 1024 * 1024
 GEMINI_MODELS = ["gemini-2.5-flash-lite"]
 
