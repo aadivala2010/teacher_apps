@@ -26,6 +26,7 @@ var apiRoutes = {
   plannerSave: "/api/planner-save",
   plannerLoad: "/api/planner-load",
   plannerExportPdf: "/api/planner-export-pdf",
+  plannerExportDocx: "/api/planner-export-docx",
 };
 var plannerDatabaseName = "teacherPlannerDb";
 var plannerDatabaseVersion = 1;
@@ -950,9 +951,9 @@ async function handleApplyCurrentTemplate() {
   var errorData;
   var filename;
   applyCurrentTemplateButton.disabled = true;
-  setPlannerStatus("Applying the current planner data to your PDF template...");
+  setPlannerStatus("Applying the current planner data to your Word template...");
   try {
-    response = await fetch(apiRoutes.plannerExportPdf, {
+    response = await fetch(apiRoutes.plannerExportDocx, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(await plannerPayloadWithAttachments()),
@@ -964,7 +965,7 @@ async function handleApplyCurrentTemplate() {
     blob = await response.blob();
     filename = suggestedFilenameFromHeaders(response);
     downloadBlob(blob, filename);
-    setPlannerStatus("Your template PDF was created from the current data.", "success");
+    setPlannerStatus("Your Word template was created from the current data.", "success");
   } catch (error) {
     setPlannerStatus(error.message || "Could not apply the current data to the template.", "error");
   } finally {

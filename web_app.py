@@ -21,6 +21,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 import planner_db
+import planner_docx
 import planner_pdf
 import table_app
 
@@ -74,6 +75,12 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
+        if route == "planner-export-docx":
+            try:
+                self.handle_planner_export_docx()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
         if route == "planner-export-saved-pdf":
             try:
                 self.handle_planner_export_saved_pdf()
@@ -112,6 +119,7 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             "planner-template-save",
             "planner-template-load",
             "planner-export-pdf",
+            "planner-export-docx",
             "planner-export-saved-pdf",
         }:
             self.send_json({"ok": True, "route": route, "method": "POST"})
@@ -138,6 +146,8 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             return "planner-template-load"
         if path.endswith("/planner-export-pdf"):
             return "planner-export-pdf"
+        if path.endswith("/planner-export-docx"):
+            return "planner-export-docx"
         if path.endswith("/planner-export-saved-pdf"):
             return "planner-export-saved-pdf"
         if path.endswith("/attachment"):
@@ -239,6 +249,16 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
         result, filename = planner_pdf.build_planner_pdf(payload)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(result)))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.end_headers()
+        self.wfile.write(result)
+
+    def handle_planner_export_docx(self) -> None:
+        payload = self.read_json_body(max_bytes=MAX_UPLOAD_BYTES)
+        result, filename = planner_docx.build_planner_docx(payload)
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         self.send_header("Content-Length", str(len(result)))
         self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.end_headers()

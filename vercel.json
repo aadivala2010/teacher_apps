@@ -39,6 +39,10 @@
       "destination": "/api/index?route=planner-export-pdf"
     },
     {
+      "source": "/api/planner-export-docx",
+      "destination": "/api/index?route=planner-export-docx"
+    },
+    {
       "source": "/api/planner-export-saved-pdf",
       "destination": "/api/index?route=planner-export-saved-pdf"
     },
