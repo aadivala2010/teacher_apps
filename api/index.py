@@ -227,7 +227,8 @@ class handler(BaseHTTPRequestHandler):
         plans = payload.get("savedWeeks") or []
         if not isinstance(plans, list) or not plans:
             raise ValueError("Select at least one saved week to download.")
-        result, filename = planner_docx.build_database_docx(plans)
+        base_url = str(payload.get("baseUrl") or f"https://{self.headers.get('Host', '')}")
+        result, filename = planner_docx.build_database_docx(plans, base_url)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         self.send_header("Content-Length", str(len(result)))

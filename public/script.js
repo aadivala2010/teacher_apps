@@ -863,6 +863,7 @@ async function handleConfirmDatabaseDownload() {
   }
   exportData = {
     exportedAt: new Date().toISOString(),
+    baseUrl: window.location.origin,
     source: window.location.hostname || "local",
     order: "oldest-to-newest-by-year-month-week",
     savedWeeks: plans,
@@ -901,6 +902,7 @@ async function handleSavePlan() {
       response = await postMultipart(apiRoutes.plannerSave, payload);
       data = await response.json();
       if (response.ok && data.plan) {
+        await savePlanToIndexedDb(data.plan);
         applyPlannerRecord(data.plan);
         setPlannerStatus("Week saved to the local database folder. Attachments are stored in the database.", "success");
         return;

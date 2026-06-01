@@ -5,9 +5,13 @@ import re
 from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import urljoin
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 
 
 TEMPLATE_PATH = Path(__file__).resolve().parent / "assets" / "templates" / "lesson-plan-template.docx"
@@ -101,7 +105,8 @@ def _attachment_items(plan: dict[str, object]) -> list[dict[str, object]]:
         if not isinstance(item, dict):
             continue
         content = _decode_data_url(str(item.get("dataUrl") or ""))
-        if not content:
+        download_url = str(item.get("downloadUrl") or "")
+        if not content and not download_url:
             continue
         filename = _safe_filename(str(item.get("filename") or "attachment"))
         base_name = filename
@@ -119,6 +124,7 @@ def _attachment_items(plan: dict[str, object]) -> list[dict[str, object]]:
                 "filename": filename,
                 "mimeType": str(item.get("mimeType") or "application/octet-stream"),
                 "content": content,
+                "downloadUrl": download_url,
             }
         )
     return result
@@ -155,14 +161,49 @@ def _fill_centers(table: object, plan: dict[str, object]) -> None:
         _set_cell_text(table, assessment_row, column, f"Assessment: {assessment}" if assessment else "Assessment:")
 
 
-def _append_attachments_section(document: object, items: list[dict[str, object]]) -> None:
+def _absolute_attachment_url(url: str, base_url: str) -> str:
+    if not url:
+        return ""
+    if url.startswith(("http://", "https://")):
+        return url
+    return urljoin(base_url.rstrip("/") + "/", url.lstrip("/"))
+
+
+def _add_hyperlink(paragraph: object, url: str, text: str) -> None:
+    relationship_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), relationship_id)
+
+    run = OxmlElement("w:r")
+    run_properties = OxmlElement("w:rPr")
+    color = OxmlElement("w:color")
+    color.set(qn("w:val"), "0563C1")
+    underline = OxmlElement("w:u")
+    underline.set(qn("w:val"), "single")
+    run_properties.append(color)
+    run_properties.append(underline)
+    run.append(run_properties)
+
+    text_element = OxmlElement("w:t")
+    text_element.text = text
+    run.append(text_element)
+    hyperlink.append(run)
+    paragraph._p.append(hyperlink)
+
+
+def _append_attachments_section(document: object, items: list[dict[str, object]], base_url: str = "") -> None:
     if not items:
         return
     document.add_page_break()
     document.add_heading("Attachments", level=1)
-    document.add_paragraph("Attachment files are embedded in this Word database and listed below in lesson-plan order.")
+    document.add_paragraph("Attachment files are linked through the website backend when available and embedded when included in this Word file.")
     for index, item in enumerate(items, start=1):
-        document.add_paragraph(f"{index}. {item['label']}: {item['filename']}")
+        paragraph = document.add_paragraph(f"{index}. {item['label']}: ")
+        link_url = _absolute_attachment_url(str(item.get("downloadUrl") or ""), base_url)
+        if link_url:
+            _add_hyperlink(paragraph, link_url, str(item["filename"]))
+        else:
+            paragraph.add_run(str(item["filename"]))
 
 
 def _add_embedded_attachment_files(docx_bytes: bytes, items: list[dict[str, object]]) -> bytes:
@@ -175,6 +216,8 @@ def _add_embedded_attachment_files(docx_bytes: bytes, items: list[dict[str, obje
         for name in input_zip.namelist():
             output_zip.writestr(name, input_zip.read(name))
         for index, item in enumerate(items, start=1):
+            if not item.get("content"):
+                continue
             entry_name = f"word/attachments/{index:02d}-{item['filename']}"
             if entry_name not in existing:
                 output_zip.writestr(entry_name, bytes(item["content"]))
@@ -233,20 +276,20 @@ def _append_document_body(target: object, source: object) -> None:
         target_body.append(deepcopy(element))
 
 
-def build_database_docx(plans: list[dict[str, object]]) -> tuple[bytes, str]:
+def build_database_docx(plans: list[dict[str, object]], base_url: str = "") -> tuple[bytes, str]:
     if not plans:
         raise ValueError("Select at least one saved week to download.")
 
     document = _filled_template_document(plans[0])
     all_attachment_items = _attachment_items(plans[0])
-    _append_attachments_section(document, all_attachment_items)
+    _append_attachments_section(document, all_attachment_items, base_url)
 
     for plan in plans[1:]:
         document.add_page_break()
         next_document = _filled_template_document(plan)
         plan_items = _attachment_items(plan)
         all_attachment_items.extend(plan_items)
-        _append_attachments_section(next_document, plan_items)
+        _append_attachments_section(next_document, plan_items, base_url)
         _append_document_body(document, next_document)
 
     buffer = BytesIO()
