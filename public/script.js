@@ -1,3 +1,4 @@
+var yearSelect = document.querySelector("#yearSelect");
 var monthSelect = document.querySelector("#monthSelect");
 var weekSelect = document.querySelector("#weekSelect");
 var classInput = document.querySelector("#classInput");
@@ -99,20 +100,12 @@ function nextMonday(date) {
   return result;
 }
 
-function startOfMonday(date) {
-  var result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  var day = result.getDay();
-  var delta = day === 0 ? -6 : 1 - day;
-  result.setDate(result.getDate() + delta);
-  return result;
-}
-
-function firstWorkdayOfMonth(date) {
+function firstFullWorkWeekStart(date) {
   var day = date.getDay();
-  if (day === 0 || day === 6) {
-    return nextMonday(date);
+  if (day === 1) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   }
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return nextMonday(date);
 }
 
 function formatDateLabel(date) {
@@ -128,11 +121,9 @@ function formatDateIso(date) {
 function computeMonthWeeks(year, monthIndex) {
   var cacheKey = year + "-" + monthIndex;
   var firstOfMonth;
-  var calendarStart;
   var start;
   var monthEnd;
   var weeks;
-  var i;
   var end;
   var dates;
   var date;
@@ -143,19 +134,18 @@ function computeMonthWeeks(year, monthIndex) {
   }
 
   firstOfMonth = new Date(year, monthIndex, 1);
-  start = firstWorkdayOfMonth(firstOfMonth);
+  start = firstFullWorkWeekStart(firstOfMonth);
   monthEnd = new Date(year, monthIndex + 1, 0);
   weeks = [];
 
-  for (i = 0; i < 5; i += 1) {
-    calendarStart = startOfMonday(start);
-    end = addDays(calendarStart, 4);
+  while (weeks.length < 5 && start <= monthEnd) {
+    end = addDays(start, 4);
     if (end > monthEnd) {
-      end = monthEnd;
+      break;
     }
     dates = [];
     for (j = 0; j < 5; j += 1) {
-      date = addDays(calendarStart, j);
+      date = addDays(start, j);
       if (date < firstOfMonth || date > monthEnd) {
         dates.push(null);
       } else {
@@ -163,7 +153,7 @@ function computeMonthWeeks(year, monthIndex) {
       }
     }
     weeks.push({
-      number: i + 1,
+      number: weeks.length + 1,
       start: start,
       end: end,
       startIso: formatDateIso(start),
@@ -188,12 +178,31 @@ function renderMonthOptions() {
   monthSelect.value = String(new Date().getMonth() + 1);
 }
 
+function renderYearOptions() {
+  var startYear = currentYear - 2;
+  var endYear = currentYear + 5;
+  var year;
+  yearSelect.innerHTML = "";
+  for (year = startYear; year <= endYear; year += 1) {
+    yearSelect.appendChild(option(String(year), year));
+  }
+  yearSelect.value = String(currentYear);
+}
+
+function selectedYear() {
+  return Number(yearSelect.value || currentYear);
+}
+
 function renderWeekOptions() {
-  var weeks = computeMonthWeeks(currentYear, Number(monthSelect.value) - 1);
+  var previousValue = weekSelect.value;
+  var weeks = computeMonthWeeks(selectedYear(), Number(monthSelect.value) - 1);
   var i;
   weekSelect.innerHTML = "";
   for (i = 0; i < weeks.length; i += 1) {
     weekSelect.appendChild(option("Week " + weeks[i].number, weeks[i].number));
+  }
+  if (previousValue && Number(previousValue) <= weeks.length) {
+    weekSelect.value = previousValue;
   }
   if (!weekSelect.value) {
     weekSelect.value = "1";
@@ -203,7 +212,7 @@ function renderWeekOptions() {
 function selectedWeekData() {
   var month = Number(monthSelect.value) - 1;
   var weekNumber = Number(weekSelect.value);
-  return computeMonthWeeks(currentYear, month)[weekNumber - 1];
+  return computeMonthWeeks(selectedYear(), month)[weekNumber - 1];
 }
 
 function renderWeekDays() {
@@ -212,6 +221,7 @@ function renderWeekDays() {
   var i;
   var dateLabel;
 
+  currentYearLabel.textContent = String(selectedYear());
   selectedWeekRange.textContent = titleCaseWeekRange(weekData);
 
   for (i = 0; i < dayLabels.length; i += 1) {
@@ -415,7 +425,7 @@ function plannerPayload() {
   }
 
   return {
-    year: currentYear,
+    year: selectedYear(),
     month: Number(monthSelect.value),
     monthLabel: monthNames[Number(monthSelect.value) - 1],
     weekNumber: Number(weekSelect.value),
@@ -600,7 +610,7 @@ async function handleLoadPlan() {
   loadPlanButton.disabled = true;
   setPlannerStatus("Loading the saved week...");
   try {
-    data = await loadPlanFromIndexedDb(currentYear, Number(monthSelect.value), Number(weekSelect.value));
+    data = await loadPlanFromIndexedDb(selectedYear(), Number(monthSelect.value), Number(weekSelect.value));
     resetPlannerForm();
     if (!data) {
       setPlannerStatus("No saved week was found on this device for this month and week.");
@@ -644,11 +654,17 @@ async function handleApplyCurrentTemplate() {
 }
 
 function initializePlanner() {
-  currentYearLabel.textContent = String(currentYear);
+  renderYearOptions();
+  currentYearLabel.textContent = String(selectedYear());
   renderMonthOptions();
   renderWeekOptions();
   renderWeekDays();
   renderSectionGrids();
+
+  yearSelect.addEventListener("change", function () {
+    renderWeekOptions();
+    renderWeekDays();
+  });
 
   monthSelect.addEventListener("change", function () {
     renderWeekOptions();
