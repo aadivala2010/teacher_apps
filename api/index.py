@@ -29,6 +29,9 @@ class handler(BaseHTTPRequestHandler):
             if route == "planner-save":
                 self.handle_planner_save()
                 return
+            if route == "planner-upload-attachment":
+                self.handle_planner_upload_attachment()
+                return
             if route == "planner-load":
                 self.handle_planner_load()
                 return
@@ -69,6 +72,7 @@ class handler(BaseHTTPRequestHandler):
             "book-theme-finder",
             "lesson-plan-copier",
             "planner-save",
+            "planner-upload-attachment",
             "planner-load",
             "planner-template-save",
             "planner-template-load",
@@ -94,6 +98,8 @@ class handler(BaseHTTPRequestHandler):
             return "lesson-plan-copier"
         if path.endswith("/planner-save"):
             return "planner-save"
+        if path.endswith("/planner-upload-attachment"):
+            return "planner-upload-attachment"
         if path.endswith("/planner-load"):
             return "planner-load"
         if path.endswith("/planner-template-save"):
@@ -171,6 +177,19 @@ class handler(BaseHTTPRequestHandler):
             result = dict(payload)
             result["attachments"] = blob_storage.upload_file_attachments(attachments)
         self.send_json({"plan": result})
+
+    def handle_planner_upload_attachment(self) -> None:
+        fields, files = self.parse_multipart_body()
+        field_key = fields.get("fieldKey", "")
+        attachment = next(iter(files.values()), None)
+        if not field_key or not attachment:
+            raise ValueError("Attachment upload is missing.")
+        result = blob_storage.upload_attachment(
+            str(attachment.get("filename") or "attachment"),
+            str(attachment.get("mimeType") or "application/octet-stream"),
+            bytes(attachment.get("content") or b""),
+        )
+        self.send_json({"fieldKey": field_key, "attachment": result})
 
     def handle_planner_load(self) -> None:
         payload = self.read_json_body()

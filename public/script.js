@@ -24,6 +24,7 @@ var cancelDatabaseDownloadButton = document.querySelector("#cancelDatabaseDownlo
 var confirmDatabaseDownloadButton = document.querySelector("#confirmDatabaseDownloadButton");
 var apiRoutes = {
   plannerSave: "/api/planner-save",
+  plannerUploadAttachment: "/api/planner-upload-attachment",
   plannerLoad: "/api/planner-load",
   plannerExportPdf: "/api/planner-export-pdf",
   plannerExportDocx: "/api/planner-export-docx",
@@ -34,6 +35,8 @@ var plannerDatabaseVersion = 1;
 var plannerStoreName = "plans";
 var currentAttachments = {};
 var maxServerSaveUploadBytes = 4 * 1024 * 1024;
+var removedAttachmentFields = {};
+var weekLoadSerial = 0;
 
 var assessmentOptions = [
   "Checklist",
@@ -324,28 +327,49 @@ function renderSectionGrids() {
   centersGrid.innerHTML = html;
 }
 
-function setAttachmentLink(fieldKey, attachment) {
+function setAttachmentLink(fieldKey, attachment, markRemoved) {
   var target = document.getElementById("attachment-link-" + fieldKey);
   var link;
+  var controls;
+  var removeButton;
+  var input;
   if (!target) {
     return;
   }
   if (!attachment) {
     delete currentAttachments[fieldKey];
+    if (markRemoved) {
+      removedAttachmentFields[fieldKey] = true;
+    }
     target.className = "attachment-empty";
     target.textContent = "No attachment uploaded";
+    input = document.getElementById("attachment-" + fieldKey);
+    if (input) {
+      input.value = "";
+    }
     return;
   }
+  delete removedAttachmentFields[fieldKey];
   currentAttachments[fieldKey] = attachment;
-  target.className = "";
+  target.className = "attachment-actions";
   target.textContent = "";
+  controls = document.createElement("div");
+  controls.className = "attachment-control-row";
   link = document.createElement("a");
   link.className = "attachment-link";
   link.href = attachment.downloadUrl || attachment.dataUrl || "#";
   link.target = "_blank";
   link.rel = "noopener noreferrer";
-  link.textContent = attachment.filename || "Open attachment";
-  target.appendChild(link);
+  link.textContent = "Open";
+  controls.appendChild(link);
+  removeButton = document.createElement("button");
+  removeButton.className = "attachment-remove";
+  removeButton.type = "button";
+  removeButton.dataset.field = fieldKey;
+  removeButton.textContent = "Remove";
+  controls.appendChild(removeButton);
+  target.appendChild(document.createTextNode(attachment.filename || "Attachment"));
+  target.appendChild(controls);
 }
 
 function handleAttachmentInputChange(event) {
@@ -356,14 +380,28 @@ function handleAttachmentInputChange(event) {
   }
   file = input.files && input.files[0];
   if (!file) {
-    setAttachmentLink(input.dataset.field, null);
+    setAttachmentLink(input.dataset.field, null, true);
     return;
   }
+  delete removedAttachmentFields[input.dataset.field];
   setAttachmentLink(input.dataset.field, {
     filename: file.name,
     mimeType: file.type || "application/octet-stream",
     dataUrl: URL.createObjectURL(file),
   });
+}
+
+function handleAttachmentRemoveClick(event) {
+  var target = event.target;
+  var button;
+  if (!target || !target.closest) {
+    return;
+  }
+  button = target.closest(".attachment-remove");
+  if (!button) {
+    return;
+  }
+  setAttachmentLink(button.dataset.field, null, true);
 }
 
 function setFieldValue(fieldKey, kind, value) {
@@ -378,6 +416,7 @@ function resetPlannerForm() {
   programInput.value = "";
   booksInput.value = "";
   currentAttachments = {};
+  removedAttachmentFields = {};
 
   var textFields = document.querySelectorAll('[data-kind="text"]');
   var assessmentFields = document.querySelectorAll('[data-kind="assessment"]');
@@ -405,6 +444,7 @@ function applyPlannerRecord(record) {
   classInput.value = record.className || "";
   programInput.value = record.programName || "";
   booksInput.value = record.books || "";
+  removedAttachmentFields = {};
 
   for (sectionName in record.activities) {
     if (!Object.prototype.hasOwnProperty.call(record.activities, sectionName)) {
@@ -478,7 +518,7 @@ function plannerPayload() {
     outdoorLearning: document.querySelector('[data-field="outdoor_learning"][data-kind="text"]').value.trim(),
     outdoorAssessment: document.querySelector('[data-field="outdoor_learning"][data-kind="assessment"]').value,
     activities: activities,
-    clearAttachmentFields: [],
+    clearAttachmentFields: Object.keys(removedAttachmentFields),
     templateName: monthNames[Number(monthSelect.value) - 1] + " Week " + weekSelect.value,
   };
 }
@@ -528,6 +568,82 @@ function blobToDataUrl(blob) {
     };
     reader.readAsDataURL(blob);
   });
+}
+
+function dataUrlToBlob(dataUrl) {
+  return fetch(dataUrl).then(function (response) {
+    return response.blob();
+  });
+}
+
+async function uploadStoredAttachment(fieldKey, attachment) {
+  var blob;
+  var formData;
+  var response;
+  var data;
+
+  if (!attachment || attachment.downloadUrl || !attachment.dataUrl) {
+    return attachment;
+  }
+  blob = await dataUrlToBlob(attachment.dataUrl);
+  if (blob.size > maxServerSaveUploadBytes) {
+    return {
+      filename: attachment.filename || "attachment",
+      mimeType: attachment.mimeType || blob.type || "application/octet-stream",
+    };
+  }
+  formData = new FormData();
+  formData.append("fieldKey", fieldKey);
+  formData.append("attachment", blob, attachment.filename || "attachment");
+  response = await fetch(apiRoutes.plannerUploadAttachment, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) {
+    return {
+      filename: attachment.filename || "attachment",
+      mimeType: attachment.mimeType || blob.type || "application/octet-stream",
+    };
+  }
+  data = await response.json();
+  return data.attachment || attachment;
+}
+
+async function preparePlansForDatabaseExport(plans) {
+  var prepared = JSON.parse(JSON.stringify(plans));
+  var i;
+  var key;
+  var attachments;
+  var savedPlan;
+  var uploaded;
+  var planChanged;
+
+  for (i = 0; i < prepared.length; i += 1) {
+    planChanged = false;
+    savedPlan = JSON.parse(JSON.stringify(prepared[i]));
+    attachments = prepared[i].attachments || {};
+    for (key in attachments) {
+      if (!Object.prototype.hasOwnProperty.call(attachments, key)) {
+        continue;
+      }
+      if (attachments[key] && attachments[key].dataUrl && !attachments[key].downloadUrl) {
+        uploaded = await uploadStoredAttachment(key, attachments[key]);
+        attachments[key] = uploaded;
+        if (uploaded && uploaded.downloadUrl) {
+          if (!savedPlan.attachments) {
+            savedPlan.attachments = {};
+          }
+          savedPlan.attachments[key] = uploaded;
+          planChanged = true;
+        }
+      }
+    }
+    prepared[i].attachments = attachments;
+    if (planChanged) {
+      await savePlanToIndexedDb(savedPlan);
+    }
+  }
+  return prepared;
 }
 
 async function collectAttachmentsForStorage() {
@@ -867,6 +983,7 @@ async function handleDownloadDatabase() {
 
 async function handleConfirmDatabaseDownload() {
   var plans = selectedDatabasePlans();
+  var preparedPlans;
   var exportData;
   var response;
   var errorData;
@@ -877,14 +994,22 @@ async function handleConfirmDatabaseDownload() {
     setPlannerStatus("Select at least one saved week to download.");
     return;
   }
+  confirmDatabaseDownloadButton.disabled = true;
+  setPlannerStatus("Preparing attachment links...");
+  try {
+    preparedPlans = await preparePlansForDatabaseExport(plans);
+  } catch (error) {
+    setPlannerStatus(error.message || "Could not prepare attachment links.", "error");
+    confirmDatabaseDownloadButton.disabled = false;
+    return;
+  }
   exportData = {
     exportedAt: new Date().toISOString(),
     baseUrl: window.location.origin,
     source: window.location.hostname || "local",
     order: "oldest-to-newest-by-year-month-week",
-    savedWeeks: plans,
+    savedWeeks: preparedPlans,
   };
-  confirmDatabaseDownloadButton.disabled = true;
   setPlannerStatus("Creating your Word database...");
   try {
     response = await postJson(apiRoutes.plannerExportDatabaseDocx, exportData);
@@ -943,43 +1068,76 @@ async function handleSavePlan() {
 }
 
 async function handleLoadPlan() {
-  var data;
-  var response;
-  var serverData;
-  var lookup;
   loadPlanButton.disabled = true;
   setPlannerStatus("Loading the saved week...");
   try {
-    lookup = {
-      year: selectedYear(),
-      month: Number(monthSelect.value),
-      weekNumber: Number(weekSelect.value),
-    };
-    try {
-      response = await postJson(apiRoutes.plannerLoad, lookup);
-      serverData = await response.json();
-      if (response.ok && serverData.plan) {
-        resetPlannerForm();
-        applyPlannerRecord(serverData.plan);
-        setPlannerStatus("Saved week loaded from the local database folder.", "success");
-        return;
-      }
-    } catch (serverError) {
-      // Fall back to browser storage when the local database API is unavailable.
-    }
-
-    data = await loadPlanFromIndexedDb(lookup.year, lookup.month, lookup.weekNumber);
-    resetPlannerForm();
-    if (!data) {
+    if (!(await loadSelectedWeekIntoForm())) {
       setPlannerStatus("No saved week was found on this device for this month and week.");
       return;
     }
-    applyPlannerRecord(data);
     setPlannerStatus("Saved week loaded.", "success");
   } catch (error) {
     setPlannerStatus(error.message || "Could not load the saved week.", "error");
   } finally {
     loadPlanButton.disabled = false;
+  }
+}
+
+function selectedWeekLookup() {
+  return {
+    year: selectedYear(),
+    month: Number(monthSelect.value),
+    weekNumber: Number(weekSelect.value),
+  };
+}
+
+async function loadSelectedWeekIntoForm() {
+  var lookup = selectedWeekLookup();
+  var response;
+  var serverData;
+  var data;
+
+  resetPlannerForm();
+  try {
+    response = await postJson(apiRoutes.plannerLoad, lookup);
+    serverData = await response.json();
+    if (response.ok && serverData.plan) {
+      applyPlannerRecord(serverData.plan);
+      await savePlanToIndexedDb(serverData.plan);
+      return true;
+    }
+  } catch (serverError) {
+    // Fall back to browser storage when the backend has no saved copy.
+  }
+
+  data = await loadPlanFromIndexedDb(lookup.year, lookup.month, lookup.weekNumber);
+  if (!data) {
+    return false;
+  }
+  applyPlannerRecord(data);
+  return true;
+}
+
+async function handleSelectedWeekChanged() {
+  var serial = weekLoadSerial + 1;
+  weekLoadSerial = serial;
+  renderWeekDays();
+  resetPlannerForm();
+  setPlannerStatus("Loading selected week...");
+  try {
+    if (await loadSelectedWeekIntoForm()) {
+      if (serial === weekLoadSerial) {
+        setPlannerStatus("Saved week loaded.", "success");
+      }
+      return;
+    }
+    if (serial === weekLoadSerial) {
+      setPlannerStatus("New blank week ready.");
+    }
+  } catch (error) {
+    if (serial === weekLoadSerial) {
+      setPlannerStatus(error.message || "Could not load this week.", "error");
+    }
   }
 }
 
@@ -994,7 +1152,7 @@ async function handleApplyCurrentTemplate() {
     response = await fetch(apiRoutes.plannerExportPdf, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(await plannerPayloadWithAttachments()),
+      body: JSON.stringify(plannerPayload()),
     });
     if (!response.ok) {
       errorData = await response.json();
@@ -1019,18 +1177,19 @@ function initializePlanner() {
   renderWeekDays();
   renderSectionGrids();
   document.addEventListener("change", handleAttachmentInputChange);
+  document.addEventListener("click", handleAttachmentRemoveClick);
 
   yearSelect.addEventListener("change", function () {
     renderWeekOptions();
-    renderWeekDays();
+    handleSelectedWeekChanged();
   });
 
   monthSelect.addEventListener("change", function () {
     renderWeekOptions();
-    renderWeekDays();
+    handleSelectedWeekChanged();
   });
 
-  weekSelect.addEventListener("change", renderWeekDays);
+  weekSelect.addEventListener("change", handleSelectedWeekChanged);
   savePlanButton.addEventListener("click", handleSavePlan);
   loadPlanButton.addEventListener("click", handleLoadPlan);
   applyCurrentTemplateButton.addEventListener("click", handleApplyCurrentTemplate);
@@ -1043,6 +1202,7 @@ function initializePlanner() {
       closeDatabaseModal();
     }
   });
+  handleSelectedWeekChanged();
 }
 
 initializePlanner();

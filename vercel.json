@@ -23,6 +23,10 @@
       "destination": "/api/index?route=planner-save"
     },
     {
+      "source": "/api/planner-upload-attachment",
+      "destination": "/api/index?route=planner-upload-attachment"
+    },
+    {
       "source": "/api/planner-load",
       "destination": "/api/index?route=planner-load"
     },

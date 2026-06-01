@@ -323,6 +323,36 @@ button {
   text-decoration: underline;
 }
 
+.attachment-actions {
+  display: grid;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 0.88rem;
+  word-break: break-word;
+}
+
+.attachment-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.attachment-remove {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #9f2f2f;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.attachment-remove:hover {
+  text-decoration: underline;
+}
+
 .attachment-empty {
   color: var(--muted);
   font-size: 0.86rem;
