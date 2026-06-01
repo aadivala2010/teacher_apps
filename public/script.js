@@ -17,11 +17,12 @@ var loadPlanButton = document.querySelector("#loadPlanButton");
 var applyCurrentTemplateButton = document.querySelector("#applyCurrentTemplateButton");
 var applySavedTemplateButton = document.querySelector("#applySavedTemplateButton");
 var apiRoutes = {
-  plannerSave: "/api/planner-save",
-  plannerLoad: "/api/planner-load",
   plannerExportPdf: "/api/planner-export-pdf",
-  plannerExportSavedPdf: "/api/planner-export-saved-pdf",
 };
+var plannerDatabaseName = "teacherPlannerDb";
+var plannerDatabaseVersion = 1;
+var plannerStoreName = "plans";
+var currentAttachments = {};
 
 var assessmentOptions = [
   "Checklist",
@@ -65,6 +66,10 @@ var weekCache = {};
 function setPlannerStatus(message, kind) {
   plannerStatus.textContent = message;
   plannerStatus.className = "status-text" + (kind ? " " + kind : "");
+}
+
+function plannerStorageKey(year, month, weekNumber) {
+  return String(year) + "-" + String(month) + "-" + String(weekNumber);
 }
 
 function option(label, value) {
@@ -263,14 +268,16 @@ function setAttachmentLink(fieldKey, attachment) {
     return;
   }
   if (!attachment) {
+    delete currentAttachments[fieldKey];
     target.className = "attachment-empty";
     target.textContent = "No attachment uploaded";
     return;
   }
+  currentAttachments[fieldKey] = attachment;
   target.className = "";
   target.innerHTML =
     '<a class="attachment-link" href="' +
-    attachment.downloadUrl +
+    (attachment.downloadUrl || attachment.dataUrl || "#") +
     '" target="_blank" rel="noopener noreferrer">' +
     attachment.filename +
     "</a>";
@@ -287,6 +294,7 @@ function resetPlannerForm() {
   classInput.value = "";
   programInput.value = "";
   booksInput.value = "";
+  currentAttachments = {};
 
   var textFields = document.querySelectorAll('[data-kind="text"]');
   var assessmentFields = document.querySelectorAll('[data-kind="assessment"]');
@@ -392,34 +400,114 @@ function plannerPayload() {
   };
 }
 
-function appendAttachmentFiles(formData) {
+function openPlannerDatabase() {
+  return new Promise(function (resolve, reject) {
+    var request = window.indexedDB.open(plannerDatabaseName, plannerDatabaseVersion);
+
+    request.onupgradeneeded = function (event) {
+      var db = event.target.result;
+      if (!db.objectStoreNames.contains(plannerStoreName)) {
+        db.createObjectStore(plannerStoreName, { keyPath: "storageKey" });
+      }
+    };
+
+    request.onsuccess = function () {
+      resolve(request.result);
+    };
+
+    request.onerror = function () {
+      reject(new Error("Could not open the planner database on this device."));
+    };
+  });
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      resolve(String(reader.result || ""));
+    };
+    reader.onerror = function () {
+      reject(new Error("Could not read one of the attachments."));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function collectAttachmentsForStorage() {
   var attachmentInputs = document.querySelectorAll('[data-kind="attachment"]');
+  var attachments = {};
   var i;
   var input;
+  var file;
+  var dataUrl;
+
+  for (var existingKey in currentAttachments) {
+    if (Object.prototype.hasOwnProperty.call(currentAttachments, existingKey)) {
+      attachments[existingKey] = currentAttachments[existingKey];
+    }
+  }
 
   for (i = 0; i < attachmentInputs.length; i += 1) {
     input = attachmentInputs[i];
     if (input.files && input.files[0]) {
-      formData.append("attachment::" + input.dataset.field, input.files[0]);
+      file = input.files[0];
+      dataUrl = await readFileAsDataUrl(file);
+      attachments[input.dataset.field] = {
+        filename: file.name,
+        mimeType: file.type || "application/octet-stream",
+        dataUrl: dataUrl,
+      };
     }
   }
+
+  return attachments;
 }
 
-async function postMultipart(url, payload) {
-  var formData = new FormData();
-  formData.append("payload", JSON.stringify(payload));
-  appendAttachmentFiles(formData);
-  return fetch(url, {
-    method: "POST",
-    body: formData,
+function savePlanToIndexedDb(record) {
+  return openPlannerDatabase().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var transaction = db.transaction(plannerStoreName, "readwrite");
+      var store = transaction.objectStore(plannerStoreName);
+      var request;
+
+      record.storageKey = plannerStorageKey(record.year, record.month, record.weekNumber);
+      request = store.put(record);
+
+      request.onsuccess = function () {
+        resolve(record);
+      };
+
+      request.onerror = function () {
+        reject(new Error("Could not save this week on this device."));
+      };
+
+      transaction.oncomplete = function () {
+        db.close();
+      };
+    });
   });
 }
 
-async function postJson(url, payload) {
-  return fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+function loadPlanFromIndexedDb(year, month, weekNumber) {
+  return openPlannerDatabase().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var transaction = db.transaction(plannerStoreName, "readonly");
+      var store = transaction.objectStore(plannerStoreName);
+      var request = store.get(plannerStorageKey(year, month, weekNumber));
+
+      request.onsuccess = function () {
+        resolve(request.result || null);
+      };
+
+      request.onerror = function () {
+        reject(new Error("Could not load the saved week from this device."));
+      };
+
+      transaction.oncomplete = function () {
+        db.close();
+      };
+    });
   });
 }
 
@@ -455,18 +543,19 @@ function downloadBlob(blob, filename) {
 }
 
 async function handleSavePlan() {
-  var response;
-  var data;
+  var payload;
+  var attachments;
+  var record;
   savePlanButton.disabled = true;
-  setPlannerStatus("Saving this week to the database...");
+  setPlannerStatus("Saving this week on this device...");
   try {
-    response = await postMultipart(apiRoutes.plannerSave, plannerPayload());
-    data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || "Could not save the planner.");
-    }
-    applyPlannerRecord(data.plan);
-    setPlannerStatus("Week saved. You can load it again any time using this month and week.", "success");
+    payload = plannerPayload();
+    attachments = await collectAttachmentsForStorage();
+    record = JSON.parse(JSON.stringify(payload));
+    record.attachments = attachments;
+    await savePlanToIndexedDb(record);
+    applyPlannerRecord(record);
+    setPlannerStatus("Week saved on this device. You can load it again any time using this month and week.", "success");
   } catch (error) {
     setPlannerStatus(error.message || "Could not save the planner.", "error");
   } finally {
@@ -475,26 +564,17 @@ async function handleSavePlan() {
 }
 
 async function handleLoadPlan() {
-  var response;
   var data;
   loadPlanButton.disabled = true;
   setPlannerStatus("Loading the saved week...");
   try {
-    response = await postJson(apiRoutes.plannerLoad, {
-      year: currentYear,
-      month: Number(monthSelect.value),
-      weekNumber: Number(weekSelect.value),
-    });
-    data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || "Could not load the saved week.");
-    }
+    data = await loadPlanFromIndexedDb(currentYear, Number(monthSelect.value), Number(weekSelect.value));
     resetPlannerForm();
-    if (!data.plan) {
-      setPlannerStatus("No saved week was found for this month and week.");
+    if (!data) {
+      setPlannerStatus("No saved week was found on this device for this month and week.");
       return;
     }
-    applyPlannerRecord(data.plan);
+    applyPlannerRecord(data);
     setPlannerStatus("Saved week loaded.", "success");
   } catch (error) {
     setPlannerStatus(error.message || "Could not load the saved week.", "error");
@@ -511,7 +591,11 @@ async function handleApplyCurrentTemplate() {
   applyCurrentTemplateButton.disabled = true;
   setPlannerStatus("Applying the current planner data to your PDF template...");
   try {
-    response = await postJson(apiRoutes.plannerExportPdf, plannerPayload());
+    response = await fetch(apiRoutes.plannerExportPdf, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(plannerPayload()),
+    });
     if (!response.ok) {
       errorData = await response.json();
       throw new Error(errorData.error || "Could not apply the current data to the template.");
@@ -528,6 +612,7 @@ async function handleApplyCurrentTemplate() {
 }
 
 async function handleApplySavedTemplate() {
+  var savedPlan;
   var response;
   var blob;
   var errorData;
@@ -535,11 +620,16 @@ async function handleApplySavedTemplate() {
   applySavedTemplateButton.disabled = true;
   setPlannerStatus("Applying the saved week to your PDF template...");
   try {
-    response = await postJson(apiRoutes.plannerExportSavedPdf, {
-      year: currentYear,
-      month: Number(monthSelect.value),
-      weekNumber: Number(weekSelect.value),
-      monthLabel: monthNames[Number(monthSelect.value) - 1],
+    savedPlan = await loadPlanFromIndexedDb(currentYear, Number(monthSelect.value), Number(weekSelect.value));
+    if (!savedPlan) {
+      setPlannerStatus("No saved week was found on this device for this month and week.");
+      return;
+    }
+    savedPlan.monthLabel = monthNames[Number(monthSelect.value) - 1];
+    response = await fetch(apiRoutes.plannerExportPdf, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(savedPlan),
     });
     if (!response.ok) {
       errorData = await response.json();
