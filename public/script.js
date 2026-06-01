@@ -17,6 +17,11 @@ var savePlanButton = document.querySelector("#savePlanButton");
 var loadPlanButton = document.querySelector("#loadPlanButton");
 var applyCurrentTemplateButton = document.querySelector("#applyCurrentTemplateButton");
 var downloadDatabaseButton = document.querySelector("#downloadDatabaseButton");
+var databaseModal = document.querySelector("#databaseModal");
+var databaseWeekList = document.querySelector("#databaseWeekList");
+var closeDatabaseModalButton = document.querySelector("#closeDatabaseModalButton");
+var cancelDatabaseDownloadButton = document.querySelector("#cancelDatabaseDownloadButton");
+var confirmDatabaseDownloadButton = document.querySelector("#confirmDatabaseDownloadButton");
 var apiRoutes = {
   plannerSave: "/api/planner-save",
   plannerLoad: "/api/planner-load",
@@ -65,6 +70,7 @@ var centerConfig = [
 
 var currentYear = new Date().getFullYear();
 var weekCache = {};
+var databaseExportPlans = [];
 
 function setPlannerStatus(message, kind) {
   plannerStatus.textContent = message;
@@ -651,6 +657,79 @@ function sortedPlansOldestFirst(plans) {
   });
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function databasePlanLabel(plan) {
+  var monthLabel = plan.monthLabel || monthNames[Number(plan.month) - 1] || "Month";
+  return String(plan.year) + " " + monthLabel + " Week " + String(plan.weekNumber);
+}
+
+function databasePlanDetail(plan) {
+  var parts = [];
+  if (plan.weekStart && plan.weekEnd) {
+    parts.push(plan.weekStart + " to " + plan.weekEnd);
+  }
+  if (plan.className) {
+    parts.push(plan.className);
+  }
+  if (plan.programName) {
+    parts.push(plan.programName);
+  }
+  return parts.join(" | ");
+}
+
+function renderDatabaseWeekChoices(plans) {
+  var html = "";
+  var i;
+
+  for (i = 0; i < plans.length; i += 1) {
+    html +=
+      '<label class="week-select-row">' +
+      '<input type="checkbox" data-export-index="' + i + '" checked />' +
+      '<span>' +
+      '<strong>' + escapeHtml(databasePlanLabel(plans[i])) + '</strong>' +
+      '<small>' + escapeHtml(databasePlanDetail(plans[i])) + '</small>' +
+      '</span>' +
+      '</label>';
+  }
+  databaseWeekList.innerHTML = html;
+}
+
+function openDatabaseModal(plans) {
+  databaseExportPlans = plans;
+  renderDatabaseWeekChoices(plans);
+  databaseModal.hidden = false;
+  confirmDatabaseDownloadButton.focus();
+}
+
+function closeDatabaseModal() {
+  databaseModal.hidden = true;
+  databaseExportPlans = [];
+  databaseWeekList.innerHTML = "";
+}
+
+function selectedDatabasePlans() {
+  var inputs = databaseWeekList.querySelectorAll("[data-export-index]");
+  var selected = [];
+  var i;
+  var index;
+
+  for (i = 0; i < inputs.length; i += 1) {
+    if (inputs[i].checked) {
+      index = Number(inputs[i].getAttribute("data-export-index"));
+      selected.push(databaseExportPlans[index]);
+    }
+  }
+  return selected;
+}
+
 function suggestedFilenameFromHeaders(response) {
   var contentDisposition = response.headers.get("Content-Disposition") || "";
   var match = /filename="([^"]+)"/i.exec(contentDisposition);
@@ -684,31 +763,43 @@ function downloadBlob(blob, filename) {
 
 async function handleDownloadDatabase() {
   var plans;
-  var exportData;
-  var blob;
 
   downloadDatabaseButton.disabled = true;
-  setPlannerStatus("Preparing the database download...");
+  setPlannerStatus("Loading saved weeks...");
   try {
     plans = sortedPlansOldestFirst(await loadAllPlansFromIndexedDb());
     if (!plans.length) {
       setPlannerStatus("No saved weeks were found in this browser database.");
       return;
     }
-    exportData = {
-      exportedAt: new Date().toISOString(),
-      source: window.location.hostname || "local",
-      order: "oldest-to-newest-by-year-month-week",
-      savedWeeks: plans,
-    };
-    blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-    downloadBlob(blob, "teacher-planner-database.json");
-    setPlannerStatus("Database downloaded with saved weeks ordered oldest to newest.", "success");
+    openDatabaseModal(plans);
+    setPlannerStatus("Choose which saved weeks to download.");
   } catch (error) {
     setPlannerStatus(error.message || "Could not download the database.", "error");
   } finally {
     downloadDatabaseButton.disabled = false;
   }
+}
+
+function handleConfirmDatabaseDownload() {
+  var plans = selectedDatabasePlans();
+  var exportData;
+  var blob;
+
+  if (!plans.length) {
+    setPlannerStatus("Select at least one saved week to download.");
+    return;
+  }
+  exportData = {
+    exportedAt: new Date().toISOString(),
+    source: window.location.hostname || "local",
+    order: "oldest-to-newest-by-year-month-week",
+    savedWeeks: plans,
+  };
+  blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+  downloadBlob(blob, "teacher-planner-database.json");
+  closeDatabaseModal();
+  setPlannerStatus("Selected saved weeks downloaded oldest to newest.", "success");
 }
 
 async function handleSavePlan() {
@@ -839,6 +930,14 @@ function initializePlanner() {
   loadPlanButton.addEventListener("click", handleLoadPlan);
   applyCurrentTemplateButton.addEventListener("click", handleApplyCurrentTemplate);
   downloadDatabaseButton.addEventListener("click", handleDownloadDatabase);
+  closeDatabaseModalButton.addEventListener("click", closeDatabaseModal);
+  cancelDatabaseDownloadButton.addEventListener("click", closeDatabaseModal);
+  confirmDatabaseDownloadButton.addEventListener("click", handleConfirmDatabaseDownload);
+  databaseModal.addEventListener("click", function (event) {
+    if (event.target === databaseModal) {
+      closeDatabaseModal();
+    }
+  });
 }
 
 initializePlanner();
