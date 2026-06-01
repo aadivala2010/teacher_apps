@@ -322,7 +322,7 @@ function renderSectionGrids() {
 }
 
 function setAttachmentLink(fieldKey, attachment) {
-  var target = document.querySelector("#attachment-link-" + fieldKey);
+  var target = document.getElementById("attachment-link-" + fieldKey);
   var link;
   if (!target) {
     return;
@@ -514,6 +514,19 @@ function readFileAsDataUrl(file) {
   });
 }
 
+function blobToDataUrl(blob) {
+  return new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      resolve(String(reader.result || ""));
+    };
+    reader.onerror = function () {
+      reject(new Error("Could not read one of the saved attachments."));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function collectAttachmentsForStorage() {
   var attachmentInputs = document.querySelectorAll('[data-kind="attachment"]');
   var attachments = {};
@@ -543,6 +556,59 @@ async function collectAttachmentsForStorage() {
   }
 
   return attachments;
+}
+
+async function collectAttachmentsForPayload() {
+  var attachments = {};
+  var attachmentInputs = document.querySelectorAll('[data-kind="attachment"]');
+  var existingKey;
+  var item;
+  var response;
+  var blob;
+  var i;
+  var input;
+  var file;
+
+  for (existingKey in currentAttachments) {
+    if (!Object.prototype.hasOwnProperty.call(currentAttachments, existingKey)) {
+      continue;
+    }
+    item = currentAttachments[existingKey];
+    if (item.dataUrl) {
+      attachments[existingKey] = item;
+    } else if (item.downloadUrl) {
+      response = await fetch(item.downloadUrl);
+      if (response.ok) {
+        blob = await response.blob();
+        attachments[existingKey] = {
+          filename: item.filename || "attachment",
+          mimeType: item.mimeType || blob.type || "application/octet-stream",
+          dataUrl: await blobToDataUrl(blob),
+        };
+      }
+    }
+  }
+
+  for (i = 0; i < attachmentInputs.length; i += 1) {
+    input = attachmentInputs[i];
+    if (input.files && input.files[0]) {
+      file = input.files[0];
+      attachments[input.dataset.field] = {
+        filename: file.name,
+        mimeType: file.type || "application/octet-stream",
+        dataUrl: await readFileAsDataUrl(file),
+      };
+      setAttachmentLink(input.dataset.field, attachments[input.dataset.field]);
+    }
+  }
+
+  return attachments;
+}
+
+async function plannerPayloadWithAttachments() {
+  var payload = plannerPayload();
+  payload.attachments = await collectAttachmentsForPayload();
+  return payload;
 }
 
 function appendAttachmentFiles(formData) {
@@ -889,7 +955,7 @@ async function handleApplyCurrentTemplate() {
     response = await fetch(apiRoutes.plannerExportPdf, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(plannerPayload()),
+      body: JSON.stringify(await plannerPayloadWithAttachments()),
     });
     if (!response.ok) {
       errorData = await response.json();
