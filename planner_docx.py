@@ -2,15 +2,12 @@ from __future__ import annotations
 
 import base64
 import re
+from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import quote
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from docx import Document
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
-from docx.opc.constants import RELATIONSHIP_TYPE as RT
 
 
 TEMPLATE_PATH = Path(__file__).resolve().parent / "assets" / "templates" / "lesson-plan-template.docx"
@@ -158,42 +155,14 @@ def _fill_centers(table: object, plan: dict[str, object]) -> None:
         _set_cell_text(table, assessment_row, column, f"Assessment: {assessment}" if assessment else "Assessment:")
 
 
-def _add_hyperlink(paragraph: object, url: str, text: str) -> None:
-    relationship_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
-    hyperlink = OxmlElement("w:hyperlink")
-    hyperlink.set(qn("r:id"), relationship_id)
-
-    run = OxmlElement("w:r")
-    run_properties = OxmlElement("w:rPr")
-    color = OxmlElement("w:color")
-    color.set(qn("w:val"), "0563C1")
-    underline = OxmlElement("w:u")
-    underline.set(qn("w:val"), "single")
-    run_properties.append(color)
-    run_properties.append(underline)
-    run.append(run_properties)
-
-    text_element = OxmlElement("w:t")
-    text_element.text = text
-    run.append(text_element)
-    hyperlink.append(run)
-    paragraph._p.append(hyperlink)
-
-
 def _append_attachments_section(document: object, items: list[dict[str, object]]) -> None:
     if not items:
         return
     document.add_page_break()
     document.add_heading("Attachments", level=1)
-    document.add_paragraph("Attachment files are included in this Word file and listed below in lesson-plan order.")
-    for item in items:
-        paragraph = document.add_paragraph(style=None)
-        paragraph.add_run(f"{item['label']}: ")
-        data_url = (
-            f"data:{quote(str(item['mimeType']), safe='/')};base64,"
-            f"{base64.b64encode(bytes(item['content'])).decode('ascii')}"
-        )
-        _add_hyperlink(paragraph, data_url, str(item["filename"]))
+    document.add_paragraph("Attachment files are embedded in this Word database and listed below in lesson-plan order.")
+    for index, item in enumerate(items, start=1):
+        document.add_paragraph(f"{index}. {item['label']}: {item['filename']}")
 
 
 def _add_embedded_attachment_files(docx_bytes: bytes, items: list[dict[str, object]]) -> bytes:
@@ -225,104 +194,7 @@ def database_output_filename(plans: list[dict[str, object]]) -> str:
     return "teacher-planner-database.docx"
 
 
-def _database_plan_label(plan: dict[str, object]) -> str:
-    year = str(plan.get("year") or "").strip()
-    month_label = str(plan.get("monthLabel") or plan.get("month") or "Month").strip()
-    week_number = str(plan.get("weekNumber") or "").strip()
-    parts = [part for part in [year, month_label, f"Week {week_number}" if week_number else ""] if part]
-    return " ".join(parts) or "Saved Week"
-
-
-def _add_database_activity_rows(table: object, plan: dict[str, object], label: str, section_name: str) -> None:
-    for day_key, day_label in zip(DAY_KEYS, DAY_LABELS):
-        item = _activity_item(plan, section_name, day_key)
-        row = table.add_row().cells
-        row[0].text = label
-        row[1].text = day_label
-        row[2].text = str(item.get("text") or "")
-        row[3].text = str(item.get("assessment") or "")
-
-
-def _add_database_center_rows(table: object, plan: dict[str, object]) -> None:
-    for key, label in CENTER_LABELS.items():
-        item = _activity_item(plan, "centers", key)
-        row = table.add_row().cells
-        row[0].text = "Centers"
-        row[1].text = label
-        row[2].text = str(item.get("text") or "")
-        row[3].text = str(item.get("assessment") or "")
-
-
-def _add_database_attachment_section(document: object, plan: dict[str, object], all_items: list[dict[str, object]]) -> None:
-    items = _attachment_items(plan)
-    if not items:
-        return
-    document.add_paragraph("Attachments").runs[0].bold = True
-    for item in items:
-        all_items.append(item)
-        paragraph = document.add_paragraph(style=None)
-        paragraph.add_run(f"{item['label']}: ")
-        data_url = (
-            f"data:{quote(str(item['mimeType']), safe='/')};base64,"
-            f"{base64.b64encode(bytes(item['content'])).decode('ascii')}"
-        )
-        _add_hyperlink(paragraph, data_url, str(item["filename"]))
-
-
-def build_database_docx(plans: list[dict[str, object]]) -> tuple[bytes, str]:
-    document = Document()
-    document.add_heading("Teacher Planner Database", level=1)
-    document.add_paragraph("Saved weeks exported oldest to newest. Attachment files are included in this Word file.")
-    all_attachment_items: list[dict[str, object]] = []
-
-    for index, plan in enumerate(plans):
-        if index:
-            document.add_page_break()
-        document.add_heading(_database_plan_label(plan), level=2)
-
-        summary = document.add_table(rows=0, cols=2)
-        for label, value in [
-            ("Year", plan.get("year") or ""),
-            ("Month", plan.get("monthLabel") or plan.get("month") or ""),
-            ("Week", plan.get("weekNumber") or ""),
-            ("Week Dates", f"{plan.get('weekStart') or ''} to {plan.get('weekEnd') or ''}".strip()),
-            ("Class", plan.get("className") or ""),
-            ("Program", plan.get("programName") or ""),
-            ("Books", plan.get("books") or ""),
-        ]:
-            cells = summary.add_row().cells
-            cells[0].text = str(label)
-            cells[1].text = str(value)
-
-        document.add_paragraph("Activities").runs[0].bold = True
-        table = document.add_table(rows=1, cols=4)
-        headers = table.rows[0].cells
-        headers[0].text = "Section"
-        headers[1].text = "Activity"
-        headers[2].text = "Plan"
-        headers[3].text = "Assessment"
-        _add_database_activity_rows(table, plan, "Circle Time", "circle_time")
-        _add_database_activity_rows(table, plan, "Small Group Learning Experience 1", "small_group_1")
-        _add_database_activity_rows(table, plan, "Small Group Learning Experience 2", "small_group_2")
-        row = table.add_row().cells
-        row[0].text = "Outdoor Learning Experiences"
-        row[1].text = "Outdoor Learning"
-        row[2].text = str(plan.get("outdoorLearning") or "")
-        row[3].text = str(plan.get("outdoorAssessment") or "")
-        _add_database_center_rows(table, plan)
-        _add_database_attachment_section(document, plan, all_attachment_items)
-
-    buffer = BytesIO()
-    document.save(buffer)
-    result = _add_embedded_attachment_files(buffer.getvalue(), all_attachment_items)
-    return result, database_output_filename(plans)
-
-
-def build_planner_docx(plan: dict[str, object]) -> tuple[bytes, str]:
-    if not TEMPLATE_PATH.exists():
-        raise FileNotFoundError(f"Template DOCX was not found at {TEMPLATE_PATH}")
-
-    document = Document(str(TEMPLATE_PATH))
+def _fill_template_document(document: object, plan: dict[str, object]) -> None:
     if not document.tables:
         raise ValueError("Template DOCX does not contain the lesson-plan table.")
     table = document.tables[0]
@@ -344,6 +216,47 @@ def build_planner_docx(plan: dict[str, object]) -> tuple[bytes, str]:
 
     _fill_centers(table, plan)
 
+
+def _filled_template_document(plan: dict[str, object]) -> object:
+    if not TEMPLATE_PATH.exists():
+        raise FileNotFoundError(f"Template DOCX was not found at {TEMPLATE_PATH}")
+    document = Document(str(TEMPLATE_PATH))
+    _fill_template_document(document, plan)
+    return document
+
+
+def _append_document_body(target: object, source: object) -> None:
+    target_body = target.element.body
+    for element in source.element.body:
+        if element.tag.endswith("}sectPr"):
+            continue
+        target_body.append(deepcopy(element))
+
+
+def build_database_docx(plans: list[dict[str, object]]) -> tuple[bytes, str]:
+    if not plans:
+        raise ValueError("Select at least one saved week to download.")
+
+    document = _filled_template_document(plans[0])
+    all_attachment_items = _attachment_items(plans[0])
+    _append_attachments_section(document, all_attachment_items)
+
+    for plan in plans[1:]:
+        document.add_page_break()
+        next_document = _filled_template_document(plan)
+        plan_items = _attachment_items(plan)
+        all_attachment_items.extend(plan_items)
+        _append_attachments_section(next_document, plan_items)
+        _append_document_body(document, next_document)
+
+    buffer = BytesIO()
+    document.save(buffer)
+    result = _add_embedded_attachment_files(buffer.getvalue(), all_attachment_items)
+    return result, database_output_filename(plans)
+
+
+def build_planner_docx(plan: dict[str, object]) -> tuple[bytes, str]:
+    document = _filled_template_document(plan)
     attachment_items = _attachment_items(plan)
     _append_attachments_section(document, attachment_items)
 
