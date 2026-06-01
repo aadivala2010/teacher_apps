@@ -6,5 +6,6 @@ downloads/
 .vercel/
 .tools/
 teacher_planner.db
+data/*.db
 
 .vercel
