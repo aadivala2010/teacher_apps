@@ -23,6 +23,7 @@ from urllib.error import HTTPError, URLError
 import planner_db
 import planner_docx
 import planner_pdf
+import blob_storage
 import table_app
 
 
@@ -211,7 +212,16 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
     def handle_planner_save(self) -> None:
         fields, files = self.parse_multipart_body()
         payload = json.loads(fields.get("payload", "{}"))
-        result = planner_db.save_plan(payload, self.planner_attachments_from_files(files))
+        attachments = self.planner_attachments_from_files(files)
+        try:
+            result = planner_db.save_plan(payload, attachments)
+            if attachments and blob_storage.is_configured():
+                result["attachments"] = blob_storage.upload_file_attachments(attachments)
+        except Exception:
+            if not blob_storage.is_configured():
+                raise
+            result = dict(payload)
+            result["attachments"] = blob_storage.upload_file_attachments(attachments)
         self.send_json({"plan": result})
 
     def handle_planner_load(self) -> None:
@@ -278,6 +288,7 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
         plans = payload.get("savedWeeks") or []
         if not isinstance(plans, list) or not plans:
             raise ValueError("Select at least one saved week to download.")
+        plans = blob_storage.ensure_plan_attachment_urls(plans)
         base_url = str(payload.get("baseUrl") or f"http://{self.headers.get('Host', '')}")
         result, filename = planner_docx.build_database_docx(plans, base_url)
         self.send_response(HTTPStatus.OK)
