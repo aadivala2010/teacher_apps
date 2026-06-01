@@ -33,6 +33,7 @@ var plannerDatabaseName = "teacherPlannerDb";
 var plannerDatabaseVersion = 1;
 var plannerStoreName = "plans";
 var currentAttachments = {};
+var maxServerSaveUploadBytes = 4 * 1024 * 1024;
 
 var assessmentOptions = [
   "Checklist",
@@ -626,6 +627,21 @@ function appendAttachmentFiles(formData) {
   }
 }
 
+function selectedAttachmentByteTotal() {
+  var attachmentInputs = document.querySelectorAll('[data-kind="attachment"]');
+  var total = 0;
+  var i;
+  var input;
+
+  for (i = 0; i < attachmentInputs.length; i += 1) {
+    input = attachmentInputs[i];
+    if (input.files && input.files[0]) {
+      total += input.files[0].size || 0;
+    }
+  }
+  return total;
+}
+
 async function postMultipart(url, payload) {
   var formData = new FormData();
   formData.append("payload", JSON.stringify(payload));
@@ -898,17 +914,19 @@ async function handleSavePlan() {
   setPlannerStatus("Saving this week...");
   try {
     payload = plannerPayload();
-    try {
-      response = await postMultipart(apiRoutes.plannerSave, payload);
-      data = await response.json();
-      if (response.ok && data.plan) {
-        await savePlanToIndexedDb(data.plan);
-        applyPlannerRecord(data.plan);
-        setPlannerStatus("Week saved to the local database folder. Attachments are stored in the database.", "success");
-        return;
+    if (selectedAttachmentByteTotal() <= maxServerSaveUploadBytes) {
+      try {
+        response = await postMultipart(apiRoutes.plannerSave, payload);
+        data = await response.json();
+        if (response.ok && data.plan) {
+          await savePlanToIndexedDb(data.plan);
+          applyPlannerRecord(data.plan);
+          setPlannerStatus("Week saved to the website backend. Attachments are ready for database links.", "success");
+          return;
+        }
+      } catch (serverError) {
+        // Fall back to browser storage if the hosted backend rejects or times out.
       }
-    } catch (serverError) {
-      // Hosted deployments cannot write a local SQLite file, so they fall back to browser storage.
     }
 
     attachments = await collectAttachmentsForStorage();
@@ -916,7 +934,7 @@ async function handleSavePlan() {
     record.attachments = attachments;
     await savePlanToIndexedDb(record);
     applyPlannerRecord(record);
-    setPlannerStatus("Week saved on this device. You can load it again any time using this month and week.", "success");
+    setPlannerStatus("Week saved on this device. Attachments will be uploaded when you download the Word database.", "success");
   } catch (error) {
     setPlannerStatus(error.message || "Could not save the planner.", "error");
   } finally {
