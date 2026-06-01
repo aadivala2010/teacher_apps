@@ -83,6 +83,23 @@ function titleCaseWeekRange(weekData) {
   return weekData.startLabel + " - " + weekData.endLabel;
 }
 
+function addDays(date, count) {
+  var result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  result.setDate(result.getDate() + count);
+  return result;
+}
+
+function nextMonday(date) {
+  var result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  var day = result.getDay();
+  var delta = day === 0 ? 1 : 8 - day;
+  if (day === 1) {
+    delta = 7;
+  }
+  result.setDate(result.getDate() + delta);
+  return result;
+}
+
 function startOfMonday(date) {
   var result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   var day = result.getDay();
@@ -91,10 +108,12 @@ function startOfMonday(date) {
   return result;
 }
 
-function addDays(date, count) {
-  var result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  result.setDate(result.getDate() + count);
-  return result;
+function firstWorkdayOfMonth(date) {
+  var day = date.getDay();
+  if (day === 0 || day === 6) {
+    return nextMonday(date);
+  }
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function formatDateLabel(date) {
@@ -110,12 +129,14 @@ function formatDateIso(date) {
 function computeMonthWeeks(year, monthIndex) {
   var cacheKey = year + "-" + monthIndex;
   var firstOfMonth;
-  var firstWeekStart;
+  var calendarStart;
+  var start;
+  var monthEnd;
   var weeks;
   var i;
-  var start;
   var end;
   var dates;
+  var date;
   var j;
 
   if (weekCache[cacheKey]) {
@@ -123,15 +144,24 @@ function computeMonthWeeks(year, monthIndex) {
   }
 
   firstOfMonth = new Date(year, monthIndex, 1);
-  firstWeekStart = startOfMonday(firstOfMonth);
+  start = firstWorkdayOfMonth(firstOfMonth);
+  monthEnd = new Date(year, monthIndex + 1, 0);
   weeks = [];
 
   for (i = 0; i < 5; i += 1) {
-    start = addDays(firstWeekStart, i * 7);
-    end = addDays(start, 4);
+    calendarStart = startOfMonday(start);
+    end = addDays(calendarStart, 4);
+    if (end > monthEnd) {
+      end = monthEnd;
+    }
     dates = [];
     for (j = 0; j < 5; j += 1) {
-      dates.push(addDays(start, j));
+      date = addDays(calendarStart, j);
+      if (date < firstOfMonth || date > monthEnd) {
+        dates.push(null);
+      } else {
+        dates.push(date);
+      }
     }
     weeks.push({
       number: i + 1,
@@ -143,6 +173,7 @@ function computeMonthWeeks(year, monthIndex) {
       endLabel: formatDateLabel(end),
       dates: dates,
     });
+    start = nextMonday(start);
   }
 
   weekCache[cacheKey] = weeks;
@@ -180,17 +211,19 @@ function renderWeekDays() {
   var weekData = selectedWeekData();
   var html = "";
   var i;
+  var dateLabel;
 
   selectedWeekRange.textContent = titleCaseWeekRange(weekData);
 
   for (i = 0; i < dayLabels.length; i += 1) {
+    dateLabel = weekData.dates[i] ? formatDateLabel(weekData.dates[i]) : "Outside this month";
     html +=
       '<div class="day-chip">' +
       "<strong>" +
       dayLabels[i] +
       "</strong>" +
       "<span>" +
-      formatDateLabel(weekData.dates[i]) +
+      dateLabel +
       "</span>" +
       "</div>";
   }
