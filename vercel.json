@@ -17,6 +17,34 @@
     {
       "source": "/api/lesson-plan-copier",
       "destination": "/api/index?route=lesson-plan-copier"
+    },
+    {
+      "source": "/api/planner-save",
+      "destination": "/api/index?route=planner-save"
+    },
+    {
+      "source": "/api/planner-load",
+      "destination": "/api/index?route=planner-load"
+    },
+    {
+      "source": "/api/planner-template-save",
+      "destination": "/api/index?route=planner-template-save"
+    },
+    {
+      "source": "/api/planner-template-load",
+      "destination": "/api/index?route=planner-template-load"
+    },
+    {
+      "source": "/api/planner-export-pdf",
+      "destination": "/api/index?route=planner-export-pdf"
+    },
+    {
+      "source": "/api/planner-export-saved-pdf",
+      "destination": "/api/index?route=planner-export-saved-pdf"
+    },
+    {
+      "source": "/api/attachment",
+      "destination": "/api/index?route=attachment"
     }
   ]
 }

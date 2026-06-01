@@ -3,120 +3,115 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Teacher Tools</title>
+    <title>Teacher Weekly Planner</title>
     <meta
       name="description"
-      content="A teacher tools portfolio with Lesson Plan Copier available directly in the browser."
+      content="Plan circle time, small groups, centers, outdoor learning, templates, and attachments in one weekly teacher planner."
     />
-    <link rel="stylesheet" href="styles.css?v=4" />
+    <link rel="stylesheet" href="styles.css?v=1" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="sidebar" aria-label="Teacher apps">
-        <div class="brand">
-          <div class="brand-mark" aria-hidden="true">TT</div>
-          <div>
-            <p>Teacher Tools</p>
-            <strong>Classroom utilities</strong>
+    <div class="page-shell">
+      <header class="hero-band">
+        <div class="hero-copy">
+          <p class="eyebrow">Teacher Planner</p>
+          <h1>Weekly lesson planning with saved templates and attachments</h1>
+          <p class="hero-text">
+            Build one complete week, save it to the database, reuse it later, and keep supporting files attached to each activity.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <div class="meta-chip">
+            <span>Year</span>
+            <strong id="currentYearLabel"></strong>
+          </div>
+          <div class="meta-chip">
+            <span>Week Dates</span>
+            <strong id="selectedWeekRange">Choose month and week</strong>
           </div>
         </div>
+      </header>
 
-        <nav class="tool-list" aria-label="Available apps">
-          <button class="tool-link active" type="button" data-tool="copier">
-            <span>Lesson Plan Copier</span>
-            <small>DOCX to PDF</small>
-          </button>
-          <button class="tool-link" type="button" data-tool="books">
-            <span>Book Theme Finder</span>
-            <small>Gemini AI</small>
-          </button>
-          <button class="tool-link disabled" type="button" disabled>
-            <span>More tools soon</span>
-            <small>Coming later</small>
-          </button>
-        </nav>
-      </aside>
+      <main class="planner-layout">
+        <section class="control-band" aria-label="Planner controls">
+          <div class="control-grid">
+            <label class="field">
+              <span>Month</span>
+              <select id="monthSelect" name="month"></select>
+            </label>
 
-      <main class="workspace">
-        <header class="workspace-header">
-          <div>
-            <p class="eyebrow">Ready to use</p>
-            <h1 id="workspaceTitle">Lesson Plan Copier</h1>
-          </div>
-          <div class="status-pill" id="serverStatus">Web app</div>
-        </header>
+            <label class="field">
+              <span>Week Number</span>
+              <select id="weekSelect" name="weekNumber"></select>
+            </label>
 
-        <section class="tool-surface tool-panel active" id="copierPanel" aria-labelledby="copierTitle">
-          <div class="tool-intro">
-            <h2 id="copierTitle">Copy highlighted cells into a PDF</h2>
-            <p>
-              Upload a filled lesson-plan DOCX and the matching blank PDF. The finished PDF downloads when processing is done.
-            </p>
+            <label class="field">
+              <span>Class</span>
+              <input id="classInput" name="className" type="text" maxlength="120" />
+            </label>
+
+            <label class="field">
+              <span>Program</span>
+              <input id="programInput" name="programName" type="text" maxlength="120" />
+            </label>
+
+            <label class="field field-wide">
+              <span>Books</span>
+              <textarea id="booksInput" name="books" rows="2"></textarea>
+            </label>
           </div>
 
-          <form id="copierForm" class="upload-form">
-            <label class="file-control">
-              <span>Filled DOCX</span>
-              <input id="docxInput" name="docx" type="file" accept=".docx" required />
-            </label>
+          <div class="action-row">
+            <button id="loadPlanButton" class="primary-button" type="button">Load Saved Week</button>
+            <button id="savePlanButton" class="primary-button accent" type="button">Save Data</button>
+            <button id="applySavedTemplateButton" class="secondary-button" type="button">Apply Saved Week To Template</button>
+            <button id="applyCurrentTemplateButton" class="secondary-button" type="button">Apply Current Data To Template</button>
+          </div>
 
-            <label class="file-control">
-              <span>Matching PDF</span>
-              <input id="pdfInput" name="pdf" type="file" accept=".pdf" required />
-            </label>
-
-            <label class="toggle-row">
-              <input id="coverExisting" name="coverExisting" type="checkbox" />
-              <span>Cover existing cell text before pasting</span>
-            </label>
-
-            <div class="form-actions">
-              <button id="submitButton" class="primary-button" type="submit">Create PDF</button>
-              <p id="formStatus" class="form-status" role="status" aria-live="polite">Waiting for files.</p>
-            </div>
-          </form>
+          <p id="plannerStatus" class="status-text" role="status" aria-live="polite">Choose a month and week, save data for later, or fill your lesson-plan PDF template.</p>
         </section>
 
-        <section class="tool-surface tool-panel" id="booksPanel" aria-labelledby="booksTitle">
-          <div class="tool-intro">
-            <h2 id="booksTitle">Find preschool books by theme</h2>
-            <p>
-              Enter a classroom theme and Gemini will suggest 10 preschool-friendly books with authors and short descriptions.
-            </p>
-          </div>
-
-          <form id="booksForm" class="upload-form">
-            <label class="file-control">
-              <span>Theme</span>
-              <input id="themeInput" name="theme" type="text" maxlength="120" placeholder="Ocean animals, friendship, weather..." required />
-            </label>
-
-            <div class="form-actions">
-              <button id="booksButton" class="primary-button" type="submit">Generate Books</button>
-              <p id="booksStatus" class="form-status" role="status" aria-live="polite">Waiting for a theme.</p>
-            </div>
-          </form>
+        <section class="week-band" aria-label="Selected work week">
+          <div id="weekDays" class="week-days"></div>
         </section>
 
-        <section id="bookResults" class="book-results" aria-live="polite"></section>
+        <section class="planner-section" aria-labelledby="circleTimeHeading">
+          <div class="section-heading">
+            <h2 id="circleTimeHeading">Circle Time</h2>
+          </div>
+          <div id="circleTimeGrid" class="activity-grid"></div>
+        </section>
 
-        <section class="portfolio-row" aria-label="Portfolio">
-          <article>
-            <h2>Current App</h2>
-            <p>Lesson Plan Copier transfers only yellow-highlighted DOCX cells and replaces older pasted layers.</p>
-          </article>
-          <article>
-            <h2>For Teachers</h2>
-            <p>Tools here are built for classroom paperwork, planning, and repeatable school workflows.</p>
-          </article>
-          <article>
-            <h2>Next Apps</h2>
-            <p>Book Theme Finder is the first AI tool; the layout is ready for more teacher apps later.</p>
-          </article>
+        <section class="planner-section" aria-labelledby="smallGroupOneHeading">
+          <div class="section-heading">
+            <h2 id="smallGroupOneHeading">Small Group Learning Experience 1</h2>
+          </div>
+          <div id="smallGroupOneGrid" class="activity-grid"></div>
+        </section>
+
+        <section class="planner-section" aria-labelledby="smallGroupTwoHeading">
+          <div class="section-heading">
+            <h2 id="smallGroupTwoHeading">Small Group Learning Experience 2</h2>
+          </div>
+          <div id="smallGroupTwoGrid" class="activity-grid"></div>
+        </section>
+
+        <section class="planner-section" aria-labelledby="outdoorHeading">
+          <div class="section-heading">
+            <h2 id="outdoorHeading">Outdoor Learning Experiences</h2>
+          </div>
+          <div id="outdoorGrid" class="single-grid"></div>
+        </section>
+
+        <section class="planner-section" aria-labelledby="centersHeading">
+          <div class="section-heading">
+            <h2 id="centersHeading">Centers</h2>
+          </div>
+          <div id="centersGrid" class="center-grid"></div>
         </section>
       </main>
     </div>
 
-    <script src="script.js?v=4"></script>
+    <script src="script.js?v=1"></script>
   </body>
 </html>

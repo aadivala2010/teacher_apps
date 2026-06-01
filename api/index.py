@@ -11,6 +11,8 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import planner_db
+import planner_pdf
 import table_app
 from web_app import generate_preschool_books
 
@@ -22,6 +24,24 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         route = self.route_name()
         try:
+            if route == "planner-save":
+                self.handle_planner_save()
+                return
+            if route == "planner-load":
+                self.handle_planner_load()
+                return
+            if route == "planner-template-save":
+                self.handle_planner_template_save()
+                return
+            if route == "planner-template-load":
+                self.handle_planner_template_load()
+                return
+            if route == "planner-export-pdf":
+                self.handle_planner_export_pdf()
+                return
+            if route == "planner-export-saved-pdf":
+                self.handle_planner_export_saved_pdf()
+                return
             if route == "book-theme-finder":
                 self.handle_book_theme_finder()
                 return
@@ -34,7 +54,20 @@ class handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         route = self.route_name()
-        if route in {"book-theme-finder", "lesson-plan-copier", "index"}:
+        if route == "attachment":
+            self.handle_attachment_download()
+            return
+        if route in {
+            "book-theme-finder",
+            "lesson-plan-copier",
+            "planner-save",
+            "planner-load",
+            "planner-template-save",
+            "planner-template-load",
+            "planner-export-pdf",
+            "planner-export-saved-pdf",
+            "index",
+        }:
             self.send_json({"ok": True, "route": route, "method": "POST"})
             return
         self.send_json({"error": "Unknown API route."}, HTTPStatus.NOT_FOUND)
@@ -49,7 +82,137 @@ class handler(BaseHTTPRequestHandler):
             return "book-theme-finder"
         if path.endswith("/lesson-plan-copier") or path.endswith("/lesson_plan_copier"):
             return "lesson-plan-copier"
+        if path.endswith("/planner-save"):
+            return "planner-save"
+        if path.endswith("/planner-load"):
+            return "planner-load"
+        if path.endswith("/planner-template-save"):
+            return "planner-template-save"
+        if path.endswith("/planner-template-load"):
+            return "planner-template-load"
+        if path.endswith("/planner-export-pdf"):
+            return "planner-export-pdf"
+        if path.endswith("/planner-export-saved-pdf"):
+            return "planner-export-saved-pdf"
+        if path.endswith("/attachment"):
+            return "attachment"
         return path.rsplit("/", 1)[-1]
+
+    def read_json_body(self, max_bytes: int = 1_000_000) -> dict[str, object]:
+        content_length = int(self.headers.get("Content-Length", "0"))
+        if content_length <= 0 or content_length > max_bytes:
+            raise ValueError("Request body is missing or too large.")
+        return json.loads(self.rfile.read(content_length).decode("utf-8-sig"))
+
+    def parse_multipart_body(self, max_bytes: int = 25 * 1024 * 1024) -> tuple[dict[str, str], dict[str, dict[str, object]]]:
+        content_length = int(self.headers.get("Content-Length", "0"))
+        if content_length <= 0 or content_length > max_bytes:
+            raise ValueError("Upload is missing or too large.")
+
+        content_type = self.headers.get("Content-Type", "")
+        if "multipart/form-data" not in content_type:
+            raise ValueError("Upload must be multipart form data.")
+
+        body = self.rfile.read(content_length)
+        message = BytesParser(policy=default).parsebytes(
+            f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8") + body
+        )
+
+        fields: dict[str, str] = {}
+        files: dict[str, dict[str, object]] = {}
+        for part in message.iter_parts():
+            name = part.get_param("name", header="content-disposition")
+            filename = part.get_filename()
+            payload = part.get_payload(decode=True) or b""
+            if not name:
+                continue
+            if filename:
+                files[name] = {
+                    "filename": filename,
+                    "mimeType": part.get_content_type() or "application/octet-stream",
+                    "content": payload,
+                }
+            else:
+                fields[name] = payload.decode(part.get_content_charset() or "utf-8", errors="replace")
+        return fields, files
+
+    def planner_attachments_from_files(self, files: dict[str, dict[str, object]]) -> dict[str, dict[str, object]]:
+        result: dict[str, dict[str, object]] = {}
+        for key, value in files.items():
+            if key.startswith("attachment::"):
+                result[key.split("attachment::", 1)[1]] = value
+        return result
+
+    def handle_planner_save(self) -> None:
+        fields, files = self.parse_multipart_body()
+        payload = json.loads(fields.get("payload", "{}"))
+        result = planner_db.save_plan(payload, self.planner_attachments_from_files(files))
+        self.send_json({"plan": result})
+
+    def handle_planner_load(self) -> None:
+        payload = self.read_json_body()
+        result = planner_db.load_plan(int(payload["year"]), int(payload["month"]), int(payload["weekNumber"]))
+        if not result:
+            self.send_json({"plan": None})
+            return
+        self.send_json({"plan": result})
+
+    def handle_planner_template_save(self) -> None:
+        fields, files = self.parse_multipart_body()
+        payload = json.loads(fields.get("payload", "{}"))
+        result = planner_db.save_template(payload, self.planner_attachments_from_files(files))
+        self.send_json({"template": result})
+
+    def handle_planner_template_load(self) -> None:
+        payload = self.read_json_body()
+        result = planner_db.load_template(int(payload["month"]), int(payload["weekNumber"]))
+        if not result:
+            self.send_json({"template": None})
+            return
+        self.send_json({"template": result})
+
+    def handle_attachment_download(self) -> None:
+        parsed = urlparse(self.path)
+        attachment_id = parse_qs(parsed.query).get("id", [""])[0]
+        if not attachment_id.isdigit():
+            self.send_json({"error": "Attachment id is missing."}, HTTPStatus.BAD_REQUEST)
+            return
+        attachment = planner_db.get_attachment(int(attachment_id))
+        if not attachment:
+            self.send_json({"error": "Attachment was not found."}, HTTPStatus.NOT_FOUND)
+            return
+        content = bytes(attachment["content"])
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", str(attachment["mimeType"]))
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Content-Disposition", f'attachment; filename="{attachment["filename"]}"')
+        self.end_headers()
+        self.wfile.write(content)
+
+    def handle_planner_export_pdf(self) -> None:
+        payload = self.read_json_body()
+        result, filename = planner_pdf.build_planner_pdf(payload)
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(result)))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.end_headers()
+        self.wfile.write(result)
+
+    def handle_planner_export_saved_pdf(self) -> None:
+        payload = self.read_json_body()
+        plan = planner_db.load_plan(int(payload["year"]), int(payload["month"]), int(payload["weekNumber"]))
+        if not plan:
+            self.send_json({"error": "No saved week was found for this month and week."}, HTTPStatus.NOT_FOUND)
+            return
+        plan["monthLabel"] = payload.get("monthLabel") or plan.get("monthLabel") or ""
+        result, filename = planner_pdf.build_planner_pdf(plan)
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(result)))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.end_headers()
+        self.wfile.write(result)
 
     def handle_book_theme_finder(self) -> None:
         content_length = int(self.headers.get("Content-Length", "0"))
