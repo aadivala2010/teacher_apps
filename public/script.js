@@ -100,12 +100,20 @@ function nextMonday(date) {
   return result;
 }
 
-function firstFullWorkWeekStart(date) {
+function firstWorkdayOfMonth(date) {
   var day = date.getDay();
-  if (day === 1) {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  if (day === 0 || day === 6) {
+    return nextMonday(date);
   }
-  return nextMonday(date);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function endOfWorkWeek(date) {
+  var result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  var day = result.getDay();
+  var daysUntilFriday = Math.max(0, 5 - day);
+  result.setDate(result.getDate() + daysUntilFriday);
+  return result;
 }
 
 function formatDateLabel(date) {
@@ -134,14 +142,14 @@ function computeMonthWeeks(year, monthIndex) {
   }
 
   firstOfMonth = new Date(year, monthIndex, 1);
-  start = firstFullWorkWeekStart(firstOfMonth);
+  start = firstWorkdayOfMonth(firstOfMonth);
   monthEnd = new Date(year, monthIndex + 1, 0);
   weeks = [];
 
   while (weeks.length < 5 && start <= monthEnd) {
-    end = addDays(start, 4);
+    end = endOfWorkWeek(start);
     if (end > monthEnd) {
-      break;
+      end = monthEnd;
     }
     dates = [];
     for (j = 0; j < 5; j += 1) {
