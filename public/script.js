@@ -15,7 +15,6 @@ var centersGrid = document.querySelector("#centersGrid");
 var savePlanButton = document.querySelector("#savePlanButton");
 var loadPlanButton = document.querySelector("#loadPlanButton");
 var applyCurrentTemplateButton = document.querySelector("#applyCurrentTemplateButton");
-var applySavedTemplateButton = document.querySelector("#applySavedTemplateButton");
 var apiRoutes = {
   plannerExportPdf: "/api/planner-export-pdf",
 };
@@ -644,41 +643,6 @@ async function handleApplyCurrentTemplate() {
   }
 }
 
-async function handleApplySavedTemplate() {
-  var savedPlan;
-  var response;
-  var blob;
-  var errorData;
-  var filename;
-  applySavedTemplateButton.disabled = true;
-  setPlannerStatus("Applying the saved week to your PDF template...");
-  try {
-    savedPlan = await loadPlanFromIndexedDb(currentYear, Number(monthSelect.value), Number(weekSelect.value));
-    if (!savedPlan) {
-      setPlannerStatus("No saved week was found on this device for this month and week.");
-      return;
-    }
-    savedPlan.monthLabel = monthNames[Number(monthSelect.value) - 1];
-    response = await fetch(apiRoutes.plannerExportPdf, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(savedPlan),
-    });
-    if (!response.ok) {
-      errorData = await response.json();
-      throw new Error(errorData.error || "Could not apply the saved week to the template.");
-    }
-    blob = await response.blob();
-    filename = suggestedFilenameFromHeaders(response);
-    downloadBlob(blob, filename);
-    setPlannerStatus("Your template PDF was created from the saved week.", "success");
-  } catch (error) {
-    setPlannerStatus(error.message || "Could not apply the saved week to the template.", "error");
-  } finally {
-    applySavedTemplateButton.disabled = false;
-  }
-}
-
 function initializePlanner() {
   currentYearLabel.textContent = String(currentYear);
   renderMonthOptions();
@@ -695,7 +659,6 @@ function initializePlanner() {
   savePlanButton.addEventListener("click", handleSavePlan);
   loadPlanButton.addEventListener("click", handleLoadPlan);
   applyCurrentTemplateButton.addEventListener("click", handleApplyCurrentTemplate);
-  applySavedTemplateButton.addEventListener("click", handleApplySavedTemplate);
 }
 
 initializePlanner();
