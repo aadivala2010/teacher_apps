@@ -339,23 +339,22 @@ function setAttachmentLink(fieldKey, attachment) {
   target.appendChild(link);
 }
 
-function bindAttachmentPreviewEvents() {
-  var attachmentInputs = document.querySelectorAll('[data-kind="attachment"]');
-  var i;
-  for (i = 0; i < attachmentInputs.length; i += 1) {
-    attachmentInputs[i].addEventListener("change", function (event) {
-      var input = event.target;
-      var file = input.files && input.files[0];
-      if (!file) {
-        return;
-      }
-      setAttachmentLink(input.dataset.field, {
-        filename: file.name,
-        mimeType: file.type || "application/octet-stream",
-        dataUrl: URL.createObjectURL(file),
-      });
-    });
+function handleAttachmentInputChange(event) {
+  var input = event.target;
+  var file;
+  if (!input || input.getAttribute("data-kind") !== "attachment") {
+    return;
   }
+  file = input.files && input.files[0];
+  if (!file) {
+    setAttachmentLink(input.dataset.field, null);
+    return;
+  }
+  setAttachmentLink(input.dataset.field, {
+    filename: file.name,
+    mimeType: file.type || "application/octet-stream",
+    dataUrl: URL.createObjectURL(file),
+  });
 }
 
 function setFieldValue(fieldKey, kind, value) {
@@ -533,6 +532,7 @@ async function collectAttachmentsForStorage() {
         mimeType: file.type || "application/octet-stream",
         dataUrl: dataUrl,
       };
+      setAttachmentLink(input.dataset.field, attachments[input.dataset.field]);
     }
   }
 
@@ -822,7 +822,7 @@ function initializePlanner() {
   renderWeekOptions();
   renderWeekDays();
   renderSectionGrids();
-  bindAttachmentPreviewEvents();
+  document.addEventListener("change", handleAttachmentInputChange);
 
   yearSelect.addEventListener("change", function () {
     renderWeekOptions();
