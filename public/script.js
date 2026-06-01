@@ -27,6 +27,7 @@ var apiRoutes = {
   plannerLoad: "/api/planner-load",
   plannerExportPdf: "/api/planner-export-pdf",
   plannerExportDocx: "/api/planner-export-docx",
+  plannerExportDatabaseDocx: "/api/planner-export-database-docx",
 };
 var plannerDatabaseName = "teacherPlannerDb";
 var plannerDatabaseVersion = 1;
@@ -848,10 +849,13 @@ async function handleDownloadDatabase() {
   }
 }
 
-function handleConfirmDatabaseDownload() {
+async function handleConfirmDatabaseDownload() {
   var plans = selectedDatabasePlans();
   var exportData;
+  var response;
+  var errorData;
   var blob;
+  var filename;
 
   if (!plans.length) {
     setPlannerStatus("Select at least one saved week to download.");
@@ -863,10 +867,24 @@ function handleConfirmDatabaseDownload() {
     order: "oldest-to-newest-by-year-month-week",
     savedWeeks: plans,
   };
-  blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-  downloadBlob(blob, "teacher-planner-database.json");
-  closeDatabaseModal();
-  setPlannerStatus("Selected saved weeks downloaded oldest to newest.", "success");
+  confirmDatabaseDownloadButton.disabled = true;
+  setPlannerStatus("Creating your Word database...");
+  try {
+    response = await postJson(apiRoutes.plannerExportDatabaseDocx, exportData);
+    if (!response.ok) {
+      errorData = await response.json();
+      throw new Error(errorData.error || "Could not create the Word database.");
+    }
+    blob = await response.blob();
+    filename = suggestedFilenameFromHeaders(response);
+    downloadBlob(blob, filename);
+    closeDatabaseModal();
+    setPlannerStatus("Selected saved weeks downloaded as a Word database.", "success");
+  } catch (error) {
+    setPlannerStatus(error.message || "Could not create the Word database.", "error");
+  } finally {
+    confirmDatabaseDownloadButton.disabled = false;
+  }
 }
 
 async function handleSavePlan() {
@@ -951,9 +969,9 @@ async function handleApplyCurrentTemplate() {
   var errorData;
   var filename;
   applyCurrentTemplateButton.disabled = true;
-  setPlannerStatus("Applying the current planner data to your Word template...");
+  setPlannerStatus("Applying the current planner data to your PDF template...");
   try {
-    response = await fetch(apiRoutes.plannerExportDocx, {
+    response = await fetch(apiRoutes.plannerExportPdf, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(await plannerPayloadWithAttachments()),
@@ -965,7 +983,7 @@ async function handleApplyCurrentTemplate() {
     blob = await response.blob();
     filename = suggestedFilenameFromHeaders(response);
     downloadBlob(blob, filename);
-    setPlannerStatus("Your Word template was created from the current data.", "success");
+    setPlannerStatus("Your template PDF was created from the current data.", "success");
   } catch (error) {
     setPlannerStatus(error.message || "Could not apply the current data to the template.", "error");
   } finally {

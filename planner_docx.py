@@ -219,6 +219,105 @@ def output_filename(plan: dict[str, object]) -> str:
     return f"Lesson Plan - {month_label} - Week {week_number} - {class_name or 'Class'}.docx"
 
 
+def database_output_filename(plans: list[dict[str, object]]) -> str:
+    if len(plans) == 1:
+        return output_filename(plans[0]).replace("Lesson Plan", "Teacher Planner Database", 1)
+    return "teacher-planner-database.docx"
+
+
+def _database_plan_label(plan: dict[str, object]) -> str:
+    year = str(plan.get("year") or "").strip()
+    month_label = str(plan.get("monthLabel") or plan.get("month") or "Month").strip()
+    week_number = str(plan.get("weekNumber") or "").strip()
+    parts = [part for part in [year, month_label, f"Week {week_number}" if week_number else ""] if part]
+    return " ".join(parts) or "Saved Week"
+
+
+def _add_database_activity_rows(table: object, plan: dict[str, object], label: str, section_name: str) -> None:
+    for day_key, day_label in zip(DAY_KEYS, DAY_LABELS):
+        item = _activity_item(plan, section_name, day_key)
+        row = table.add_row().cells
+        row[0].text = label
+        row[1].text = day_label
+        row[2].text = str(item.get("text") or "")
+        row[3].text = str(item.get("assessment") or "")
+
+
+def _add_database_center_rows(table: object, plan: dict[str, object]) -> None:
+    for key, label in CENTER_LABELS.items():
+        item = _activity_item(plan, "centers", key)
+        row = table.add_row().cells
+        row[0].text = "Centers"
+        row[1].text = label
+        row[2].text = str(item.get("text") or "")
+        row[3].text = str(item.get("assessment") or "")
+
+
+def _add_database_attachment_section(document: object, plan: dict[str, object], all_items: list[dict[str, object]]) -> None:
+    items = _attachment_items(plan)
+    if not items:
+        return
+    document.add_paragraph("Attachments").runs[0].bold = True
+    for item in items:
+        all_items.append(item)
+        paragraph = document.add_paragraph(style=None)
+        paragraph.add_run(f"{item['label']}: ")
+        data_url = (
+            f"data:{quote(str(item['mimeType']), safe='/')};base64,"
+            f"{base64.b64encode(bytes(item['content'])).decode('ascii')}"
+        )
+        _add_hyperlink(paragraph, data_url, str(item["filename"]))
+
+
+def build_database_docx(plans: list[dict[str, object]]) -> tuple[bytes, str]:
+    document = Document()
+    document.add_heading("Teacher Planner Database", level=1)
+    document.add_paragraph("Saved weeks exported oldest to newest. Attachment files are included in this Word file.")
+    all_attachment_items: list[dict[str, object]] = []
+
+    for index, plan in enumerate(plans):
+        if index:
+            document.add_page_break()
+        document.add_heading(_database_plan_label(plan), level=2)
+
+        summary = document.add_table(rows=0, cols=2)
+        for label, value in [
+            ("Year", plan.get("year") or ""),
+            ("Month", plan.get("monthLabel") or plan.get("month") or ""),
+            ("Week", plan.get("weekNumber") or ""),
+            ("Week Dates", f"{plan.get('weekStart') or ''} to {plan.get('weekEnd') or ''}".strip()),
+            ("Class", plan.get("className") or ""),
+            ("Program", plan.get("programName") or ""),
+            ("Books", plan.get("books") or ""),
+        ]:
+            cells = summary.add_row().cells
+            cells[0].text = str(label)
+            cells[1].text = str(value)
+
+        document.add_paragraph("Activities").runs[0].bold = True
+        table = document.add_table(rows=1, cols=4)
+        headers = table.rows[0].cells
+        headers[0].text = "Section"
+        headers[1].text = "Activity"
+        headers[2].text = "Plan"
+        headers[3].text = "Assessment"
+        _add_database_activity_rows(table, plan, "Circle Time", "circle_time")
+        _add_database_activity_rows(table, plan, "Small Group Learning Experience 1", "small_group_1")
+        _add_database_activity_rows(table, plan, "Small Group Learning Experience 2", "small_group_2")
+        row = table.add_row().cells
+        row[0].text = "Outdoor Learning Experiences"
+        row[1].text = "Outdoor Learning"
+        row[2].text = str(plan.get("outdoorLearning") or "")
+        row[3].text = str(plan.get("outdoorAssessment") or "")
+        _add_database_center_rows(table, plan)
+        _add_database_attachment_section(document, plan, all_attachment_items)
+
+    buffer = BytesIO()
+    document.save(buffer)
+    result = _add_embedded_attachment_files(buffer.getvalue(), all_attachment_items)
+    return result, database_output_filename(plans)
+
+
 def build_planner_docx(plan: dict[str, object]) -> tuple[bytes, str]:
     if not TEMPLATE_PATH.exists():
         raise FileNotFoundError(f"Template DOCX was not found at {TEMPLATE_PATH}")

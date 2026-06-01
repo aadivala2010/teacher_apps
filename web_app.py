@@ -81,6 +81,12 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
+        if route == "planner-export-database-docx":
+            try:
+                self.handle_planner_export_database_docx()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
         if route == "planner-export-saved-pdf":
             try:
                 self.handle_planner_export_saved_pdf()
@@ -120,6 +126,7 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             "planner-template-load",
             "planner-export-pdf",
             "planner-export-docx",
+            "planner-export-database-docx",
             "planner-export-saved-pdf",
         }:
             self.send_json({"ok": True, "route": route, "method": "POST"})
@@ -148,6 +155,8 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             return "planner-export-pdf"
         if path.endswith("/planner-export-docx"):
             return "planner-export-docx"
+        if path.endswith("/planner-export-database-docx"):
+            return "planner-export-database-docx"
         if path.endswith("/planner-export-saved-pdf"):
             return "planner-export-saved-pdf"
         if path.endswith("/attachment"):
@@ -257,6 +266,19 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
     def handle_planner_export_docx(self) -> None:
         payload = self.read_json_body(max_bytes=MAX_UPLOAD_BYTES)
         result, filename = planner_docx.build_planner_docx(payload)
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        self.send_header("Content-Length", str(len(result)))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.end_headers()
+        self.wfile.write(result)
+
+    def handle_planner_export_database_docx(self) -> None:
+        payload = self.read_json_body(max_bytes=MAX_UPLOAD_BYTES)
+        plans = payload.get("savedWeeks") or []
+        if not isinstance(plans, list) or not plans:
+            raise ValueError("Select at least one saved week to download.")
+        result, filename = planner_docx.build_database_docx(plans)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         self.send_header("Content-Length", str(len(result)))
