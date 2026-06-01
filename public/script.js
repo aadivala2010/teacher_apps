@@ -16,6 +16,7 @@ var centersGrid = document.querySelector("#centersGrid");
 var savePlanButton = document.querySelector("#savePlanButton");
 var loadPlanButton = document.querySelector("#loadPlanButton");
 var applyCurrentTemplateButton = document.querySelector("#applyCurrentTemplateButton");
+var downloadDatabaseButton = document.querySelector("#downloadDatabaseButton");
 var apiRoutes = {
   plannerSave: "/api/planner-save",
   plannerLoad: "/api/planner-load",
@@ -616,6 +617,40 @@ function loadPlanFromIndexedDb(year, month, weekNumber) {
   });
 }
 
+function loadAllPlansFromIndexedDb() {
+  return openPlannerDatabase().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var transaction = db.transaction(plannerStoreName, "readonly");
+      var store = transaction.objectStore(plannerStoreName);
+      var request = store.getAll();
+
+      request.onsuccess = function () {
+        resolve(request.result || []);
+      };
+
+      request.onerror = function () {
+        reject(new Error("Could not read the saved database from this browser."));
+      };
+
+      transaction.oncomplete = function () {
+        db.close();
+      };
+    });
+  });
+}
+
+function sortedPlansOldestFirst(plans) {
+  return plans.slice().sort(function (a, b) {
+    if (Number(a.year) !== Number(b.year)) {
+      return Number(a.year) - Number(b.year);
+    }
+    if (Number(a.month) !== Number(b.month)) {
+      return Number(a.month) - Number(b.month);
+    }
+    return Number(a.weekNumber) - Number(b.weekNumber);
+  });
+}
+
 function suggestedFilenameFromHeaders(response) {
   var contentDisposition = response.headers.get("Content-Disposition") || "";
   var match = /filename="([^"]+)"/i.exec(contentDisposition);
@@ -645,6 +680,35 @@ function downloadBlob(blob, filename) {
     URL.revokeObjectURL(url);
     document.body.removeChild(link);
   }, 1000);
+}
+
+async function handleDownloadDatabase() {
+  var plans;
+  var exportData;
+  var blob;
+
+  downloadDatabaseButton.disabled = true;
+  setPlannerStatus("Preparing the database download...");
+  try {
+    plans = sortedPlansOldestFirst(await loadAllPlansFromIndexedDb());
+    if (!plans.length) {
+      setPlannerStatus("No saved weeks were found in this browser database.");
+      return;
+    }
+    exportData = {
+      exportedAt: new Date().toISOString(),
+      source: window.location.hostname || "local",
+      order: "oldest-to-newest-by-year-month-week",
+      savedWeeks: plans,
+    };
+    blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    downloadBlob(blob, "teacher-planner-database.json");
+    setPlannerStatus("Database downloaded with saved weeks ordered oldest to newest.", "success");
+  } catch (error) {
+    setPlannerStatus(error.message || "Could not download the database.", "error");
+  } finally {
+    downloadDatabaseButton.disabled = false;
+  }
 }
 
 async function handleSavePlan() {
@@ -774,6 +838,7 @@ function initializePlanner() {
   savePlanButton.addEventListener("click", handleSavePlan);
   loadPlanButton.addEventListener("click", handleLoadPlan);
   applyCurrentTemplateButton.addEventListener("click", handleApplyCurrentTemplate);
+  downloadDatabaseButton.addEventListener("click", handleDownloadDatabase);
 }
 
 initializePlanner();
