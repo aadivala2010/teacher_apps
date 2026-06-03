@@ -48,6 +48,7 @@ button {
 .app-frame {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
+  align-items: stretch;
   width: 100%;
   min-height: 100vh;
   overflow-x: hidden;
@@ -56,7 +57,9 @@ button {
 .app-sidebar {
   position: sticky;
   top: 0;
-  height: 100vh;
+  align-self: start;
+  min-height: 100vh;
+  height: auto;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -603,6 +606,7 @@ button {
   .app-sidebar {
     position: static;
     height: auto;
+    min-height: 0;
     padding: 14px;
   }
 
