@@ -11,54 +11,49 @@
     <link rel="stylesheet" href="styles.css?v=1" />
   </head>
   <body>
-    <div class="page-shell">
-      <header class="hero-band">
-        <div class="hero-copy">
-          <p class="eyebrow">Teacher Planner</p>
-          <h1>Weekly lesson planning with saved templates and attachments</h1>
-          <p class="hero-text">
-            Build one complete week, save it to the database, reuse it later, and keep supporting files attached to each activity.
-          </p>
+    <div class="app-frame">
+      <aside class="app-sidebar" aria-label="Teacher app navigation">
+        <div class="sidebar-brand">
+          <p class="eyebrow">Teacher Apps</p>
+          <h1>Tools</h1>
+          <p>Choose one app at a time so the workspace stays clean.</p>
         </div>
-        <div class="hero-meta">
-          <div class="meta-chip">
-            <span>Year</span>
-            <strong id="currentYearLabel"></strong>
-          </div>
-          <div class="meta-chip">
-            <span>Week Dates</span>
-            <strong id="selectedWeekRange">Choose month and week</strong>
-          </div>
-        </div>
-      </header>
+        <nav class="sidebar-nav" aria-label="Available apps">
+          <button class="app-tab active" type="button" data-app-tab="planner" aria-selected="true">
+            <strong>Weekly Planner</strong>
+            <span>Save weeks and fill templates</span>
+          </button>
+          <button class="app-tab" type="button" data-app-tab="grid" aria-selected="false">
+            <strong>Image Grid PDF</strong>
+            <span>Make a 2x2 image PDF</span>
+          </button>
+        </nav>
+      </aside>
 
-      <section class="grid-tool" aria-labelledby="gridToolHeading">
-        <div>
-          <p class="eyebrow">Separate App</p>
-          <h2 id="gridToolHeading">Image Folder to 2x2 PDF</h2>
-          <p>
-            Select an image folder and generate a clean <strong>2x2.pdf</strong> with four images per page.
-            The PDF contains only images, with no page numbers or added text.
-          </p>
-        </div>
-        <div class="grid-tool-controls">
-          <label class="field">
-            <span>Image Folder</span>
-            <input
-              id="gridImageInput"
-              type="file"
-              accept=".jpg,.jpeg,.png,.bmp,.gif,.webp,.tif,.tiff,image/*"
-              webkitdirectory
-              directory
-              multiple
-            />
-          </label>
-          <button id="gridGenerateButton" class="primary-button accent" type="button">Generate 2x2.pdf</button>
-          <p id="gridStatus" class="status-text" role="status" aria-live="polite">Choose a folder of images to make a 2x2 PDF.</p>
-        </div>
-      </section>
+      <div class="app-content">
+        <section id="plannerApp" class="app-view active" data-app-view="planner">
+          <div class="page-shell">
+            <header class="hero-band">
+              <div class="hero-copy">
+                <p class="eyebrow">Teacher Planner</p>
+                <h1>Weekly lesson planning with saved templates and attachments</h1>
+                <p class="hero-text">
+                  Build one complete week, save it to the database, reuse it later, and keep supporting files attached to each activity.
+                </p>
+              </div>
+              <div class="hero-meta">
+                <div class="meta-chip">
+                  <span>Year</span>
+                  <strong id="currentYearLabel"></strong>
+                </div>
+                <div class="meta-chip">
+                  <span>Week Dates</span>
+                  <strong id="selectedWeekRange">Choose month and week</strong>
+                </div>
+              </div>
+            </header>
 
-      <main class="planner-layout">
+            <main class="planner-layout">
         <section class="control-band" aria-label="Planner controls">
           <div class="control-grid">
             <label class="field">
@@ -140,7 +135,50 @@
           </div>
           <div id="centersGrid" class="center-grid"></div>
         </section>
-      </main>
+            </main>
+          </div>
+        </section>
+
+        <section id="gridApp" class="app-view" data-app-view="grid" hidden>
+          <div class="page-shell">
+            <header class="hero-band app-hero">
+              <div class="hero-copy">
+                <p class="eyebrow">Image Grid PDF</p>
+                <h1>Turn an image folder into a clean 2x2 PDF</h1>
+                <p class="hero-text">
+                  Select a folder, generate <strong>2x2.pdf</strong>, and get four images per page with no headers, footers, or extra text.
+                </p>
+              </div>
+            </header>
+
+            <section class="grid-tool" aria-labelledby="gridToolHeading">
+              <div>
+                <p class="eyebrow">Separate App</p>
+                <h2 id="gridToolHeading">Image Folder to 2x2 PDF</h2>
+                <p>
+                  Select an image folder and generate a clean <strong>2x2.pdf</strong> with four images per page.
+                  The PDF contains only images, with no page numbers or added text.
+                </p>
+              </div>
+              <div class="grid-tool-controls">
+                <label class="field">
+                  <span>Image Folder</span>
+                  <input
+                    id="gridImageInput"
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.bmp,.gif,.webp,.tif,.tiff,image/*"
+                    webkitdirectory
+                    directory
+                    multiple
+                  />
+                </label>
+                <button id="gridGenerateButton" class="primary-button accent" type="button">Generate 2x2.pdf</button>
+                <p id="gridStatus" class="status-text" role="status" aria-live="polite">Choose a folder of images to make a 2x2 PDF.</p>
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
     </div>
 
     <div id="databaseModal" class="modal-backdrop" hidden>
@@ -160,6 +198,6 @@
       </section>
     </div>
 
-    <script src="script.js?v=18"></script>
+    <script src="script.js?v=19"></script>
   </body>
 </html>

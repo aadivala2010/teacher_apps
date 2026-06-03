@@ -39,6 +39,88 @@ button {
   cursor: pointer;
 }
 
+.app-frame {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.app-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 22px 18px;
+  border-right: 1px solid rgba(255, 255, 255, 0.16);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(213, 159, 57, 0.22), transparent 32%),
+    linear-gradient(180deg, #1f2e2f 0%, #172525 100%);
+  color: #fffdf8;
+}
+
+.sidebar-brand {
+  padding: 6px 4px 12px;
+}
+
+.sidebar-brand .eyebrow {
+  color: #f0c46a;
+}
+
+.sidebar-brand h1 {
+  margin: 0 0 8px;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.sidebar-brand p:not(.eyebrow) {
+  margin: 0;
+  color: rgba(255, 253, 248, 0.72);
+  line-height: 1.45;
+}
+
+.sidebar-nav {
+  display: grid;
+  gap: 10px;
+}
+
+.app-tab {
+  width: 100%;
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fffdf8;
+  text-align: left;
+}
+
+.app-tab:hover,
+.app-tab.active {
+  border-color: rgba(240, 196, 106, 0.72);
+  background: rgba(240, 196, 106, 0.16);
+}
+
+.app-tab strong {
+  font-size: 1rem;
+}
+
+.app-tab span {
+  color: rgba(255, 253, 248, 0.72);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.app-content {
+  min-width: 0;
+}
+
+.app-view[hidden] {
+  display: none;
+}
+
 .page-shell {
   width: min(1360px, calc(100vw - 24px));
   margin: 0 auto;
@@ -134,6 +216,10 @@ button {
     linear-gradient(135deg, rgba(211, 108, 91, 0.12), rgba(211, 108, 91, 0)),
     var(--panel);
   box-shadow: var(--shadow);
+}
+
+.app-hero {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .grid-tool h2 {
@@ -495,6 +581,36 @@ button {
 }
 
 @media (max-width: 760px) {
+  .app-frame {
+    grid-template-columns: 1fr;
+  }
+
+  .app-sidebar {
+    position: static;
+    height: auto;
+    padding: 14px;
+  }
+
+  .sidebar-brand {
+    padding: 0;
+  }
+
+  .sidebar-brand h1 {
+    font-size: 1.55rem;
+  }
+
+  .sidebar-brand p:not(.eyebrow) {
+    display: none;
+  }
+
+  .sidebar-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-tab {
+    min-height: 82px;
+  }
+
   .page-shell {
     width: min(100vw - 16px, 100%);
     padding: 12px 0 28px;

@@ -25,6 +25,8 @@ var confirmDatabaseDownloadButton = document.querySelector("#confirmDatabaseDown
 var gridImageInput = document.querySelector("#gridImageInput");
 var gridGenerateButton = document.querySelector("#gridGenerateButton");
 var gridStatus = document.querySelector("#gridStatus");
+var appTabButtons = document.querySelectorAll("[data-app-tab]");
+var appViews = document.querySelectorAll("[data-app-view]");
 var apiRoutes = {
   gridPdf: "/api/grid-pdf",
   plannerSave: "/api/planner-save",
@@ -77,6 +79,59 @@ var centerConfig = [
   { key: "sensory", label: "Sensory" },
   { key: "language_literacy", label: "Language Literacy" },
 ];
+
+function appNameFromHash() {
+  var hash = (window.location.hash || "").replace("#", "").toLowerCase();
+  return hash === "grid" ? "grid" : "planner";
+}
+
+function showApp(appName, updateHash) {
+  var hasMatchingView = false;
+  var i;
+  var isActive;
+
+  for (i = 0; i < appViews.length; i += 1) {
+    if (appViews[i].getAttribute("data-app-view") === appName) {
+      hasMatchingView = true;
+    }
+  }
+
+  if (!hasMatchingView) {
+    appName = "planner";
+  }
+
+  for (i = 0; i < appTabButtons.length; i += 1) {
+    isActive = appTabButtons[i].getAttribute("data-app-tab") === appName;
+    appTabButtons[i].classList.toggle("active", isActive);
+    appTabButtons[i].setAttribute("aria-selected", isActive ? "true" : "false");
+  }
+
+  for (i = 0; i < appViews.length; i += 1) {
+    isActive = appViews[i].getAttribute("data-app-view") === appName;
+    appViews[i].hidden = !isActive;
+    appViews[i].classList.toggle("active", isActive);
+  }
+
+  if (updateHash && window.location.hash !== "#" + appName) {
+    window.history.replaceState(null, "", "#" + appName);
+  }
+}
+
+function initializeAppTabs() {
+  var i;
+
+  for (i = 0; i < appTabButtons.length; i += 1) {
+    appTabButtons[i].addEventListener("click", function () {
+      showApp(this.getAttribute("data-app-tab"), true);
+    });
+  }
+
+  window.addEventListener("hashchange", function () {
+    showApp(appNameFromHash(), false);
+  });
+
+  showApp(appNameFromHash(), false);
+}
 
 var currentYear = new Date().getFullYear();
 var weekCache = {};
@@ -1237,6 +1292,7 @@ async function handleApplyCurrentTemplate() {
 }
 
 function initializePlanner() {
+  initializeAppTabs();
   renderYearOptions();
   currentYearLabel.textContent = String(selectedYear());
   renderMonthOptions();
