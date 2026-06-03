@@ -2,3 +2,4 @@ python-docx
 lxml
 pypdf
 vercel
+Pillow

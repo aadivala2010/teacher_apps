@@ -32,6 +32,32 @@
         </div>
       </header>
 
+      <section class="grid-tool" aria-labelledby="gridToolHeading">
+        <div>
+          <p class="eyebrow">Separate App</p>
+          <h2 id="gridToolHeading">Image Folder to 2x2 PDF</h2>
+          <p>
+            Select an image folder and generate a clean <strong>2x2.pdf</strong> with four images per page.
+            The PDF contains only images, with no page numbers or added text.
+          </p>
+        </div>
+        <div class="grid-tool-controls">
+          <label class="field">
+            <span>Image Folder</span>
+            <input
+              id="gridImageInput"
+              type="file"
+              accept=".jpg,.jpeg,.png,.bmp,.gif,.webp,.tif,.tiff,image/*"
+              webkitdirectory
+              directory
+              multiple
+            />
+          </label>
+          <button id="gridGenerateButton" class="primary-button accent" type="button">Generate 2x2.pdf</button>
+          <p id="gridStatus" class="status-text" role="status" aria-live="polite">Choose a folder of images to make a 2x2 PDF.</p>
+        </div>
+      </section>
+
       <main class="planner-layout">
         <section class="control-band" aria-label="Planner controls">
           <div class="control-grid">
@@ -134,6 +160,6 @@
       </section>
     </div>
 
-    <script src="script.js?v=17"></script>
+    <script src="script.js?v=18"></script>
   </body>
 </html>

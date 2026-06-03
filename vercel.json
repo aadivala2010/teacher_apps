@@ -19,6 +19,10 @@
       "destination": "/api/index?route=lesson-plan-copier"
     },
     {
+      "source": "/api/grid-pdf",
+      "destination": "/api/index?route=grid-pdf"
+    },
+    {
       "source": "/api/planner-save",
       "destination": "/api/index?route=planner-save"
     },

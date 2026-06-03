@@ -22,7 +22,11 @@ var databaseWeekList = document.querySelector("#databaseWeekList");
 var closeDatabaseModalButton = document.querySelector("#closeDatabaseModalButton");
 var cancelDatabaseDownloadButton = document.querySelector("#cancelDatabaseDownloadButton");
 var confirmDatabaseDownloadButton = document.querySelector("#confirmDatabaseDownloadButton");
+var gridImageInput = document.querySelector("#gridImageInput");
+var gridGenerateButton = document.querySelector("#gridGenerateButton");
+var gridStatus = document.querySelector("#gridStatus");
 var apiRoutes = {
+  gridPdf: "/api/grid-pdf",
   plannerSave: "/api/planner-save",
   plannerUploadAttachment: "/api/planner-upload-attachment",
   plannerLoad: "/api/planner-load",
@@ -77,10 +81,30 @@ var centerConfig = [
 var currentYear = new Date().getFullYear();
 var weekCache = {};
 var databaseExportPlans = [];
+var supportedGridImageExtensions = [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tif", ".tiff"];
 
 function setPlannerStatus(message, kind) {
   plannerStatus.textContent = message;
   plannerStatus.className = "status-text" + (kind ? " " + kind : "");
+}
+
+function setGridStatus(message, kind) {
+  if (!gridStatus) {
+    return;
+  }
+  gridStatus.textContent = message;
+  gridStatus.className = "status-text" + (kind ? " " + kind : "");
+}
+
+function isSupportedGridImage(file) {
+  var name = String(file.name || "").toLowerCase();
+  var i;
+  for (i = 0; i < supportedGridImageExtensions.length; i += 1) {
+    if (name.endsWith(supportedGridImageExtensions[i])) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function plannerStorageKey(year, month, weekNumber) {
@@ -981,6 +1005,49 @@ async function handleDownloadDatabase() {
   }
 }
 
+async function handleGridGenerate() {
+  var files = Array.prototype.slice.call((gridImageInput && gridImageInput.files) || []);
+  var imageFiles = files.filter(isSupportedGridImage).sort(function (a, b) {
+    var aName = a.webkitRelativePath || a.name || "";
+    var bName = b.webkitRelativePath || b.name || "";
+    return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: "base" });
+  });
+  var formData;
+  var response;
+  var errorData;
+  var blob;
+  var i;
+
+  if (!imageFiles.length) {
+    setGridStatus("Select a folder with supported image files first.", "error");
+    return;
+  }
+
+  gridGenerateButton.disabled = true;
+  setGridStatus("Creating 2x2.pdf...");
+  try {
+    formData = new FormData();
+    for (i = 0; i < imageFiles.length; i += 1) {
+      formData.append("images::" + i, imageFiles[i], imageFiles[i].webkitRelativePath || imageFiles[i].name);
+    }
+    response = await fetch(apiRoutes.gridPdf, {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) {
+      errorData = await response.json();
+      throw new Error(errorData.error || "Could not generate the 2x2 PDF.");
+    }
+    blob = await response.blob();
+    downloadBlob(blob, "2x2.pdf");
+    setGridStatus("2x2.pdf was created with " + imageFiles.length + " image" + (imageFiles.length === 1 ? "." : "s."), "success");
+  } catch (error) {
+    setGridStatus(error.message || "Could not generate the 2x2 PDF.", "error");
+  } finally {
+    gridGenerateButton.disabled = false;
+  }
+}
+
 async function handleConfirmDatabaseDownload() {
   var plans = selectedDatabasePlans();
   var preparedPlans;
@@ -1178,6 +1245,9 @@ function initializePlanner() {
   renderSectionGrids();
   document.addEventListener("change", handleAttachmentInputChange);
   document.addEventListener("click", handleAttachmentRemoveClick);
+  if (gridGenerateButton) {
+    gridGenerateButton.addEventListener("click", handleGridGenerate);
+  }
 
   yearSelect.addEventListener("change", function () {
     renderWeekOptions();

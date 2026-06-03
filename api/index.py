@@ -15,6 +15,7 @@ import planner_db
 import planner_docx
 import planner_pdf
 import blob_storage
+import grid_pdf
 import table_app
 from web_app import generate_preschool_books
 
@@ -59,6 +60,9 @@ class handler(BaseHTTPRequestHandler):
             if route == "lesson-plan-copier":
                 self.handle_lesson_plan_copier()
                 return
+            if route == "grid-pdf":
+                self.handle_grid_pdf()
+                return
             self.send_json({"error": "Unknown API route."}, HTTPStatus.NOT_FOUND)
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
@@ -71,6 +75,7 @@ class handler(BaseHTTPRequestHandler):
         if route in {
             "book-theme-finder",
             "lesson-plan-copier",
+            "grid-pdf",
             "planner-save",
             "planner-upload-attachment",
             "planner-load",
@@ -96,6 +101,8 @@ class handler(BaseHTTPRequestHandler):
             return "book-theme-finder"
         if path.endswith("/lesson-plan-copier") or path.endswith("/lesson_plan_copier"):
             return "lesson-plan-copier"
+        if path.endswith("/grid-pdf") or path.endswith("/grid_pdf"):
+            return "grid-pdf"
         if path.endswith("/planner-save"):
             return "planner-save"
         if path.endswith("/planner-upload-attachment"):
@@ -369,6 +376,17 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/pdf")
         self.send_header("Content-Length", str(len(result)))
         self.send_header("Content-Disposition", f'attachment; filename="{download_name}"')
+        self.end_headers()
+        self.wfile.write(result)
+
+    def handle_grid_pdf(self) -> None:
+        _, files = self.parse_multipart_body(max_bytes=25 * 1024 * 1024)
+        image_files = [value for key, value in files.items() if key.startswith("images")]
+        result = grid_pdf.build_grid_pdf(image_files)
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(result)))
+        self.send_header("Content-Disposition", 'attachment; filename="2x2.pdf"')
         self.end_headers()
         self.wfile.write(result)
 
