@@ -8,9 +8,7 @@ var currentYearLabel = document.querySelector("#currentYearLabel");
 var selectedWeekRange = document.querySelector("#selectedWeekRange");
 var plannerStatus = document.querySelector("#plannerStatus");
 var weekDays = document.querySelector("#weekDays");
-var circleTimeGrid = document.querySelector("#circleTimeGrid");
-var smallGroupOneGrid = document.querySelector("#smallGroupOneGrid");
-var smallGroupTwoGrid = document.querySelector("#smallGroupTwoGrid");
+var dailyActivities = document.querySelector("#dailyActivities");
 var outdoorGrid = document.querySelector("#outdoorGrid");
 var centersGrid = document.querySelector("#centersGrid");
 var savePlanButton = document.querySelector("#savePlanButton");
@@ -379,23 +377,18 @@ function renderSectionGrids() {
   var html = "";
   var i;
 
-  html = "";
   for (i = 0; i < dayLabels.length; i += 1) {
-    html += activityCardHtml(dayLabels[i], "circle_time." + dayKeys[i], 6);
+    html +=
+      '<section class="day-section" aria-labelledby="day-heading-' + dayKeys[i] + '">' +
+      '<h3 id="day-heading-' + dayKeys[i] + '" class="day-section-heading">' + dayLabels[i] + "</h3>" +
+      '<div class="day-activity-grid">' +
+      activityCardHtml("Circle Time", "circle_time." + dayKeys[i], 6) +
+      activityCardHtml("Small Group Learning Experience 1", "small_group_1." + dayKeys[i], 6) +
+      activityCardHtml("Small Group Learning Experience 2", "small_group_2." + dayKeys[i], 6) +
+      "</div>" +
+      "</section>";
   }
-  circleTimeGrid.innerHTML = html;
-
-  html = "";
-  for (i = 0; i < dayLabels.length; i += 1) {
-    html += activityCardHtml(dayLabels[i], "small_group_1." + dayKeys[i], 6);
-  }
-  smallGroupOneGrid.innerHTML = html;
-
-  html = "";
-  for (i = 0; i < dayLabels.length; i += 1) {
-    html += activityCardHtml(dayLabels[i], "small_group_2." + dayKeys[i], 6);
-  }
-  smallGroupTwoGrid.innerHTML = html;
+  dailyActivities.innerHTML = html;
 
   outdoorGrid.innerHTML = activityCardHtml("Outdoor Learning Experience", "outdoor_learning", 5);
 
