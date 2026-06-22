@@ -21,6 +21,7 @@ var closeDatabaseModalButton = document.querySelector("#closeDatabaseModalButton
 var cancelDatabaseDownloadButton = document.querySelector("#cancelDatabaseDownloadButton");
 var confirmDatabaseDownloadButton = document.querySelector("#confirmDatabaseDownloadButton");
 var gridImageInput = document.querySelector("#gridImageInput");
+var gridImageFilesInput = document.querySelector("#gridImageFilesInput");
 var gridGenerateButton = document.querySelector("#gridGenerateButton");
 var gridStatus = document.querySelector("#gridStatus");
 var appTabButtons = document.querySelectorAll("[data-app-tab]");
@@ -1054,7 +1055,9 @@ async function handleDownloadDatabase() {
 }
 
 async function handleGridGenerate() {
-  var files = Array.prototype.slice.call((gridImageInput && gridImageInput.files) || []);
+  var folderFiles = Array.prototype.slice.call((gridImageInput && gridImageInput.files) || []);
+  var individualFiles = Array.prototype.slice.call((gridImageFilesInput && gridImageFilesInput.files) || []);
+  var files = folderFiles.concat(individualFiles);
   var imageFiles = files.filter(isSupportedGridImage).sort(function (a, b) {
     var aName = a.webkitRelativePath || a.name || "";
     var bName = b.webkitRelativePath || b.name || "";
