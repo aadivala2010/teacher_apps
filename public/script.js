@@ -49,6 +49,106 @@ var assessmentOptions = [
   "Portfolio",
 ];
 
+var linksToLearningOptions = [
+  {
+    category: "Language & Literacy",
+    items: [
+      "Demonstrates an understanding of letters and the letter/sound relationship",
+      "Recognizes common beginning and ending sounds",
+      "Appropriately uses newly acquired vocabulary",
+      "Knows some opposite words",
+      "Identifies and uses rhyming words",
+      "Reads/recognizes sight words",
+      "Engages in conversations about high-interest topics",
+      "Understands print concepts",
+      "Discusses setting and characters, and recalls the sequence of events in a story",
+      "Identifies features of a book and begins to recognize books written by specific authors",
+      "Understands whether information in a story is fiction or nonfiction",
+      "Recognizes the difference between words, letters, and numerals",
+      "Writes words using inventive spelling",
+      "Writes letters of the alphabet (uppercase and lowercase)",
+      "Writes first and last name in proper case",
+      "Writes numerals 1–50",
+    ],
+  },
+  {
+    category: "Mathematical Thinking",
+    items: [
+      "Counts and recognizes numerals 1–50",
+      "Counts by tens",
+      "Compares quantities, identifying more than, less than, or equal amounts",
+      "Develops the concept of subtraction and addition",
+      "Creates and interprets simple graphs",
+      "Describes a five-step procedure in sequential order",
+      "Identifies and describes 3D and 2D shapes by name and characteristics",
+      "Follows simple directions related to spatial vocabulary",
+      "Uses some ordinal numbers",
+      "Orders days of the week and months of the year",
+      "Identifies coins by sight and associated value",
+      "Completes 25+ piece puzzles",
+      "Repeats, extends, and creates simple patterns using concrete objects",
+    ],
+  },
+  {
+    category: "Wellness",
+    items: [
+      "Uses hands and eyes together to complete complex fine motor tasks",
+      "Engages in complex body movements, promoting gross muscle development and balance",
+      "Discusses and explores ways to keep his/her body safe and healthy",
+    ],
+  },
+  {
+    category: "Creative Expression",
+    items: [
+      "Shows increased awareness of musical components and vocabulary",
+      "Participates in discussions about different genres of music and entertainment concepts",
+      "Demonstrates spatial awareness while moving physically",
+      "Creates an original piece of art",
+      "Identifies different forms of visual art and artists",
+      "Engages in imaginative play related to personal experiences and interests using props",
+    ],
+  },
+  {
+    category: "Social-Emotional Learning",
+    items: [
+      "Pays attention to others and initiates how they solve problems, ask for solutions, and use them",
+      "Proactively suggests solutions for pragmatic situations",
+      "Plays cooperatively with peers and shows concern toward the feelings of others",
+      "Takes responsibility for meeting own needs",
+      "Remains engaged in self-directed activities",
+      "Actively engages in conversations with adults and peers",
+      "Demonstrates control over emotions",
+      "Establishes and sustains positive relationships",
+    ],
+  },
+  {
+    category: "Scientific Exploration",
+    items: [
+      "Understands how to have a positive/negative impact on the Earth's environment",
+      "Participates in science experiments and makes predictions",
+      "Understands seasonal changes and the impact on local weather",
+      "Describes, classifies, and categorizes living and nonliving things",
+      "Uses simple tools to investigate objects and materials",
+      "Demonstrates appropriate use for various technology tools",
+    ],
+  },
+  {
+    category: "Citizens of the World",
+    items: [
+      "Explores and recognizes the meaning of various celebrations and traditions",
+      "Recognizes the use of money as a means of exchange for goods and services",
+      "Notices that people grow and change over time",
+      "Demonstrates geographic knowledge",
+      "Understands roles and identifies common places in the community",
+      "Identifies important people throughout history",
+      "Actively pursues knowledge about another country in the world",
+      "Demonstrates acceptance of people who are similar and different",
+      "Explores languages spoken throughout the world, including Spanish",
+      "Understands that families and individuals have unique characteristics",
+    ],
+  },
+];
+
 var monthNames = [
   "January",
   "February",
@@ -351,6 +451,21 @@ function assessmentSelectHtml(fieldKey) {
   return html;
 }
 
+function linksToLearningSelectHtml(fieldKey) {
+  var html = '<select data-field="' + fieldKey + '" data-kind="links-to-learning">';
+  var g, i;
+  html += '<option value="">Links to learning</option>';
+  for (g = 0; g < linksToLearningOptions.length; g += 1) {
+    html += '<optgroup label="' + linksToLearningOptions[g].category + '">';
+    for (i = 0; i < linksToLearningOptions[g].items.length; i += 1) {
+      html += '<option value="' + linksToLearningOptions[g].items[i] + '">' + linksToLearningOptions[g].items[i] + "</option>";
+    }
+    html += "</optgroup>";
+  }
+  html += "</select>";
+  return html;
+}
+
 function attachmentHtml(fieldKey) {
   return (
     '<div class="attachment-row">' +
@@ -369,6 +484,7 @@ function activityCardHtml(label, fieldKey, rows) {
     "</h3>" +
     '<textarea rows="' + rows + '" data-field="' + fieldKey + '" data-kind="text"></textarea>' +
     assessmentSelectHtml(fieldKey) +
+    linksToLearningSelectHtml(fieldKey) +
     attachmentHtml(fieldKey) +
     "</article>"
   );
@@ -398,6 +514,18 @@ function renderSectionGrids() {
     html += activityCardHtml(centerConfig[i].label, "centers." + centerConfig[i].key, 5);
   }
   centersGrid.innerHTML = html;
+
+  var linksToLearningSelects = document.querySelectorAll('[data-kind="links-to-learning"]');
+  for (i = 0; i < linksToLearningSelects.length; i += 1) {
+    linksToLearningSelects[i].addEventListener("change", function () {
+      var fieldKey = this.dataset.field;
+      var textarea = document.querySelector('[data-field="' + fieldKey + '"][data-kind="text"]');
+      if (textarea && this.value) {
+        textarea.value += (textarea.value ? "\n" : "") + "Links to learning: " + this.value;
+        this.value = "";
+      }
+    });
+  }
 }
 
 function setAttachmentLink(fieldKey, attachment, markRemoved) {
