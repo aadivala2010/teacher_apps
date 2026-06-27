@@ -61,6 +61,38 @@
     {
       "source": "/api/attachment",
       "destination": "/api/index?route=attachment"
+    },
+    {
+      "source": "/api/auth-signup",
+      "destination": "/api/index?route=auth-signup"
+    },
+    {
+      "source": "/api/auth-login",
+      "destination": "/api/index?route=auth-login"
+    },
+    {
+      "source": "/api/auth-me",
+      "destination": "/api/index?route=auth-me"
+    },
+    {
+      "source": "/api/sync-save",
+      "destination": "/api/index?route=sync-save"
+    },
+    {
+      "source": "/api/sync-load",
+      "destination": "/api/index?route=sync-load"
+    },
+    {
+      "source": "/api/sync-list",
+      "destination": "/api/index?route=sync-list"
+    },
+    {
+      "source": "/api/sync-delete",
+      "destination": "/api/index?route=sync-delete"
+    },
+    {
+      "source": "/api/sync-attachment",
+      "destination": "/api/index?route=sync-attachment"
     }
   ]
 }

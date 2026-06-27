@@ -547,7 +547,9 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
         email = str(data.get("email", "")).strip()
         password = str(data.get("password", "")).strip()
         if not email or not password:
+            print(f"[auth-login] Missing email or password", flush=True)
             raise ValueError("Email and password are required.")
+        print(f"[auth-login] Attempting login for {email}", flush=True)
         result = supabase_sync.sign_in(email, password)
         self.send_json(result)
 

@@ -107,8 +107,12 @@ def sign_up(email: str, password: str) -> dict[str, Any]:
 
 def sign_in(email: str, password: str) -> dict[str, Any]:
     client = _client()
-    result = client.auth.sign_in_with_password({"email": email, "password": password})
-    return _auth_result(result)
+    try:
+        result = client.auth.sign_in_with_password({"email": email, "password": password})
+        return _auth_result(result)
+    except Exception as exc:
+        print(f"[supabase_sync] sign_in error for {email}: {exc}", flush=True)
+        raise
 
 
 def _auth_result(result: Any) -> dict[str, Any]:
