@@ -300,6 +300,7 @@ function setAuthState(user) {
     authUser = null;
     authButton.hidden = false;
     authUserInfo.hidden = true;
+    authUserEmail.textContent = "";
   }
 }
 
