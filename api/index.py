@@ -17,6 +17,7 @@ import planner_pdf
 import blob_storage
 import grid_pdf
 import table_app
+import supabase_sync
 from web_app import generate_preschool_books
 
 
@@ -63,6 +64,30 @@ class handler(BaseHTTPRequestHandler):
             if route == "grid-pdf":
                 self.handle_grid_pdf()
                 return
+            if route == "auth-signup":
+                self.handle_auth_signup()
+                return
+            if route == "auth-login":
+                self.handle_auth_login()
+                return
+            if route == "auth-me":
+                self.handle_auth_me()
+                return
+            if route == "sync-save":
+                self.handle_sync_save()
+                return
+            if route == "sync-load":
+                self.handle_sync_load()
+                return
+            if route == "sync-list":
+                self.handle_sync_list()
+                return
+            if route == "sync-delete":
+                self.handle_sync_delete()
+                return
+            if route == "sync-attachment":
+                self.handle_sync_attachment()
+                return
             self.send_json({"error": "Unknown API route."}, HTTPStatus.NOT_FOUND)
         except Exception as exc:
             self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
@@ -71,6 +96,9 @@ class handler(BaseHTTPRequestHandler):
         route = self.route_name()
         if route == "attachment":
             self.handle_attachment_download()
+            return
+        if route == "sync-attachment":
+            self.handle_sync_attachment()
             return
         if route in {
             "book-theme-finder",
@@ -85,6 +113,13 @@ class handler(BaseHTTPRequestHandler):
             "planner-export-docx",
             "planner-export-database-docx",
             "planner-export-saved-pdf",
+            "auth-signup",
+            "auth-login",
+            "auth-me",
+            "sync-save",
+            "sync-load",
+            "sync-list",
+            "sync-delete",
             "index",
         }:
             self.send_json({"ok": True, "route": route, "method": "POST"})
@@ -123,6 +158,22 @@ class handler(BaseHTTPRequestHandler):
             return "planner-export-saved-pdf"
         if path.endswith("/attachment"):
             return "attachment"
+        if path.endswith("/auth-signup"):
+            return "auth-signup"
+        if path.endswith("/auth-login"):
+            return "auth-login"
+        if path.endswith("/auth-me"):
+            return "auth-me"
+        if path.endswith("/sync-save"):
+            return "sync-save"
+        if path.endswith("/sync-load"):
+            return "sync-load"
+        if path.endswith("/sync-list"):
+            return "sync-list"
+        if path.endswith("/sync-delete"):
+            return "sync-delete"
+        if path.endswith("/sync-attachment"):
+            return "sync-attachment"
         return path.rsplit("/", 1)[-1]
 
     def read_json_body(self, max_bytes: int = 1_000_000) -> dict[str, object]:
@@ -389,6 +440,103 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Content-Disposition", 'attachment; filename="2x2.pdf"')
         self.end_headers()
         self.wfile.write(result)
+
+    def _get_auth_token(self) -> str:
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            return auth[7:]
+        return ""
+
+    def handle_auth_signup(self) -> None:
+        data = self.read_json_body()
+        email = str(data.get("email", "")).strip()
+        password = str(data.get("password", "")).strip()
+        if not email or not password:
+            raise ValueError("Email and password are required.")
+        if len(password) < 6:
+            raise ValueError("Password must be at least 6 characters.")
+        result = supabase_sync.sign_up(email, password)
+        self.send_json(result)
+
+    def handle_auth_login(self) -> None:
+        data = self.read_json_body()
+        email = str(data.get("email", "")).strip()
+        password = str(data.get("password", "")).strip()
+        if not email or not password:
+            raise ValueError("Email and password are required.")
+        result = supabase_sync.sign_in(email, password)
+        self.send_json(result)
+
+    def handle_auth_me(self) -> None:
+        token = self._get_auth_token()
+        if not token:
+            self.send_json({"user": None})
+            return
+        user = supabase_sync.get_user(token)
+        if not user:
+            self.send_json({"user": None})
+            return
+        self.send_json({"user": user})
+
+    def handle_sync_save(self) -> None:
+        token = self._get_auth_token()
+        if not token:
+            self.send_json({"error": "Authentication required."}, HTTPStatus.UNAUTHORIZED)
+            return
+        data = self.read_json_body()
+        result = supabase_sync.save_plan(token, data)
+        self.send_json({"plan": result})
+
+    def handle_sync_load(self) -> None:
+        token = self._get_auth_token()
+        if not token:
+            self.send_json({"error": "Authentication required."}, HTTPStatus.UNAUTHORIZED)
+            return
+        data = self.read_json_body()
+        result = supabase_sync.load_plan(token, int(data["year"]), int(data["month"]), int(data["weekNumber"]))
+        if not result:
+            self.send_json({"plan": None})
+            return
+        self.send_json({"plan": result})
+
+    def handle_sync_list(self) -> None:
+        token = self._get_auth_token()
+        if not token:
+            self.send_json({"error": "Authentication required."}, HTTPStatus.UNAUTHORIZED)
+            return
+        plans = supabase_sync.list_plans(token)
+        self.send_json({"plans": plans})
+
+    def handle_sync_delete(self) -> None:
+        token = self._get_auth_token()
+        if not token:
+            self.send_json({"error": "Authentication required."}, HTTPStatus.UNAUTHORIZED)
+            return
+        data = self.read_json_body()
+        ok = supabase_sync.delete_plan(token, int(data["year"]), int(data["month"]), int(data["weekNumber"]))
+        self.send_json({"ok": ok})
+
+    def handle_sync_attachment(self) -> None:
+        token = self._get_auth_token()
+        if not token:
+            self.send_json({"error": "Authentication required."}, HTTPStatus.UNAUTHORIZED)
+            return
+        parsed = urlparse(self.path)
+        from urllib.parse import parse_qs, unquote
+        path = unquote(parse_qs(parsed.query).get("path", [""])[0])
+        if not path:
+            raise ValueError("Attachment path is missing.")
+        attachment = supabase_sync.get_attachment(token, path)
+        if not attachment:
+            self.send_json({"error": "Attachment was not found."}, HTTPStatus.NOT_FOUND)
+            return
+        content = bytes(attachment["content"])
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", str(attachment["mimeType"]))
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Content-Disposition", f'attachment; filename="{attachment["filename"]}"')
+        self.end_headers()
+        self.wfile.write(content)
 
     def send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload).encode("utf-8")

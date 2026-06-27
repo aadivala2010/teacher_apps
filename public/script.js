@@ -34,6 +34,13 @@ var apiRoutes = {
   plannerExportPdf: "/api/planner-export-pdf",
   plannerExportDocx: "/api/planner-export-docx",
   plannerExportDatabaseDocx: "/api/planner-export-database-docx",
+  authSignup: "/api/auth-signup",
+  authLogin: "/api/auth-login",
+  authMe: "/api/auth-me",
+  syncSave: "/api/sync-save",
+  syncLoad: "/api/sync-load",
+  syncList: "/api/sync-list",
+  syncDelete: "/api/sync-delete",
 };
 var plannerDatabaseName = "teacherPlannerDb";
 var plannerDatabaseVersion = 1;
@@ -42,6 +49,10 @@ var currentAttachments = {};
 var maxServerSaveUploadBytes = 4 * 1024 * 1024;
 var removedAttachmentFields = {};
 var weekLoadSerial = 0;
+
+var authToken = localStorage.getItem("authToken") || "";
+var authUser = null;
+var isSyncing = false;
 
 var assessmentOptions = [
   "Checklist",
@@ -232,6 +243,18 @@ function initializeAppTabs() {
   showApp(appNameFromHash(), false);
 }
 
+var authButton = document.querySelector("#authButton");
+var authModal = document.querySelector("#authModal");
+var closeAuthModalButton = document.querySelector("#closeAuthModalButton");
+var authEmailInput = document.querySelector("#authEmailInput");
+var authPasswordInput = document.querySelector("#authPasswordInput");
+var authSignInButton = document.querySelector("#authSignInButton");
+var authSignUpButton = document.querySelector("#authSignUpButton");
+var authStatus = document.querySelector("#authStatus");
+var authUserInfo = document.querySelector("#authUserInfo");
+var authUserEmail = document.querySelector("#authUserEmail");
+var authSignOutButton = document.querySelector("#authSignOutButton");
+
 var currentYear = new Date().getFullYear();
 var weekCache = {};
 var databaseExportPlans = [];
@@ -259,6 +282,204 @@ function isSupportedGridImage(file) {
     }
   }
   return false;
+}
+
+function authHeaders() {
+  return authToken ? { "Authorization": "Bearer " + authToken } : {};
+}
+
+function setAuthState(user) {
+  authUser = user;
+  if (user) {
+    authButton.hidden = true;
+    authUserInfo.hidden = false;
+    authUserEmail.textContent = user.email;
+  } else {
+    authToken = "";
+    localStorage.removeItem("authToken");
+    authUser = null;
+    authButton.hidden = false;
+    authUserInfo.hidden = true;
+  }
+}
+
+async function checkAuth() {
+  if (!authToken) {
+    setAuthState(null);
+    return;
+  }
+  try {
+    var response = await fetch(apiRoutes.authMe, { headers: authHeaders() });
+    var data = await response.json();
+    if (data && data.user) {
+      setAuthState(data.user);
+    } else {
+      setAuthState(null);
+    }
+  } catch (e) {
+    setAuthState(null);
+  }
+}
+
+function openAuthModal() {
+  authEmailInput.value = "";
+  authPasswordInput.value = "";
+  authStatus.textContent = "";
+  authStatus.className = "status-text";
+  authModal.hidden = false;
+  authEmailInput.focus();
+}
+
+function closeAuthModal() {
+  authModal.hidden = true;
+}
+
+async function handleAuthSignIn() {
+  var email = authEmailInput.value.trim();
+  var password = authPasswordInput.value;
+  if (!email || !password) {
+    authStatus.textContent = "Enter your email and password.";
+    authStatus.className = "status-text error";
+    return;
+  }
+  authSignInButton.disabled = true;
+  authStatus.textContent = "Signing in...";
+  authStatus.className = "status-text";
+  try {
+    var response = await fetch(apiRoutes.authLogin, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, password: password }),
+    });
+    var data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Sign in failed.");
+    }
+    authToken = data.session.access_token;
+    localStorage.setItem("authToken", authToken);
+    setAuthState(data.user);
+    closeAuthModal();
+    setPlannerStatus("Signed in as " + data.user.email + ". Syncing data...");
+    syncAllLocalToCloud();
+  } catch (error) {
+    authStatus.textContent = error.message || "Could not sign in.";
+    authStatus.className = "status-text error";
+  } finally {
+    authSignInButton.disabled = false;
+  }
+}
+
+async function handleAuthSignUp() {
+  var email = authEmailInput.value.trim();
+  var password = authPasswordInput.value;
+  if (!email || !password) {
+    authStatus.textContent = "Enter your email and password.";
+    authStatus.className = "status-text error";
+    return;
+  }
+  if (password.length < 6) {
+    authStatus.textContent = "Password must be at least 6 characters.";
+    authStatus.className = "status-text error";
+    return;
+  }
+  authSignUpButton.disabled = true;
+  authStatus.textContent = "Creating account...";
+  authStatus.className = "status-text";
+  try {
+    var response = await fetch(apiRoutes.authSignup, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, password: password }),
+    });
+    var data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Could not create account.");
+    }
+    authToken = data.session.access_token;
+    localStorage.setItem("authToken", authToken);
+    setAuthState(data.user);
+    closeAuthModal();
+    setPlannerStatus("Account created and signed in as " + data.user.email);
+  } catch (error) {
+    authStatus.textContent = error.message || "Could not create account.";
+    authStatus.className = "status-text error";
+  } finally {
+    authSignUpButton.disabled = false;
+  }
+}
+
+function handleAuthSignOut() {
+  setAuthState(null);
+  setPlannerStatus("Signed out. Data will no longer sync to the cloud.");
+}
+
+async function syncPlanToCloud(record) {
+  if (!authToken || !authUser) {
+    return null;
+  }
+  try {
+    var response = await fetch(apiRoutes.syncSave, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken },
+      body: JSON.stringify(record),
+    });
+    var data = await response.json();
+    if (response.ok && data.plan) {
+      return data.plan;
+    }
+  } catch (e) {
+    // Cloud sync failed silently - local data is safe
+  }
+  return null;
+}
+
+async function loadPlanFromCloud(year, month, weekNumber) {
+  if (!authToken || !authUser) {
+    return null;
+  }
+  try {
+    var response = await fetch(apiRoutes.syncLoad, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken },
+      body: JSON.stringify({ year: year, month: month, weekNumber: weekNumber }),
+    });
+    var data = await response.json();
+    if (response.ok && data.plan) {
+      return data.plan;
+    }
+  } catch (e) {
+    // Cloud load failed silently
+  }
+  return null;
+}
+
+async function syncAllLocalToCloud() {
+  if (!authToken || !authUser || isSyncing) {
+    return;
+  }
+  isSyncing = true;
+  try {
+    var localPlans = await loadAllPlansFromIndexedDb();
+    if (!localPlans || !localPlans.length) {
+      setPlannerStatus("Signed in. No local data to sync.");
+      return;
+    }
+    setPlannerStatus("Syncing " + localPlans.length + " saved week(s) to the cloud...");
+    var synced = 0;
+    for (var i = 0; i < localPlans.length; i += 1) {
+      var record = JSON.parse(JSON.stringify(localPlans[i]));
+      delete record.storageKey;
+      var result = await syncPlanToCloud(record);
+      if (result) {
+        synced += 1;
+      }
+    }
+    setPlannerStatus("Synced " + synced + " of " + localPlans.length + " week(s) to the cloud.", "success");
+  } catch (e) {
+    setPlannerStatus("Cloud sync completed with some issues.", "success");
+  } finally {
+    isSyncing = false;
+  }
 }
 
 function plannerStorageKey(year, month, weekNumber) {
@@ -1292,6 +1513,7 @@ async function handleSavePlan() {
         if (response.ok && data.plan) {
           await savePlanToIndexedDb(data.plan);
           applyPlannerRecord(data.plan);
+          await syncPlanToCloud(data.plan);
           setPlannerStatus("Week saved to the website backend. Attachments are ready for database links.", "success");
           return;
         }
@@ -1305,6 +1527,7 @@ async function handleSavePlan() {
     record.attachments = attachments;
     await savePlanToIndexedDb(record);
     applyPlannerRecord(record);
+    await syncPlanToCloud(record);
     setPlannerStatus("Week saved on this device. Attachments will be uploaded when you download the Word database.", "success");
   } catch (error) {
     setPlannerStatus(error.message || "Could not save the planner.", "error");
@@ -1342,8 +1565,21 @@ async function loadSelectedWeekIntoForm() {
   var response;
   var serverData;
   var data;
+  var cloudData;
 
   resetPlannerForm();
+
+  // Try cloud first if signed in
+  if (authToken && authUser) {
+    cloudData = await loadPlanFromCloud(lookup.year, lookup.month, lookup.weekNumber);
+    if (cloudData) {
+      applyPlannerRecord(cloudData);
+      await savePlanToIndexedDb(cloudData);
+      return true;
+    }
+  }
+
+  // Then try server
   try {
     response = await postJson(apiRoutes.plannerLoad, lookup);
     serverData = await response.json();
@@ -1356,6 +1592,7 @@ async function loadSelectedWeekIntoForm() {
     // Fall back to browser storage when the backend has no saved copy.
   }
 
+  // Finally try local IndexedDB
   data = await loadPlanFromIndexedDb(lookup.year, lookup.month, lookup.weekNumber);
   if (!data) {
     return false;
@@ -1417,6 +1654,7 @@ async function handleApplyCurrentTemplate() {
 
 function initializePlanner() {
   initializeAppTabs();
+  checkAuth();
   renderYearOptions();
   currentYearLabel.textContent = String(selectedYear());
   renderMonthOptions();
@@ -1427,6 +1665,29 @@ function initializePlanner() {
   document.addEventListener("click", handleAttachmentRemoveClick);
   if (gridGenerateButton) {
     gridGenerateButton.addEventListener("click", handleGridGenerate);
+  }
+
+  if (authButton) {
+    authButton.addEventListener("click", openAuthModal);
+  }
+  if (closeAuthModalButton) {
+    closeAuthModalButton.addEventListener("click", closeAuthModal);
+  }
+  if (authSignInButton) {
+    authSignInButton.addEventListener("click", handleAuthSignIn);
+  }
+  if (authSignUpButton) {
+    authSignUpButton.addEventListener("click", handleAuthSignUp);
+  }
+  if (authSignOutButton) {
+    authSignOutButton.addEventListener("click", handleAuthSignOut);
+  }
+  if (authModal) {
+    authModal.addEventListener("click", function (event) {
+      if (event.target === authModal) {
+        closeAuthModal();
+      }
+    });
   }
 
   yearSelect.addEventListener("change", function () {
