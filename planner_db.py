@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
 
-DB_PATH = Path(__file__).resolve().parent / "data" / "teacher_planner.db"
+if os.environ.get("VERCEL"):
+    DB_PATH = Path("/tmp") / "teacher_planner.db"
+else:
+    DB_PATH = Path(__file__).resolve().parent / "data" / "teacher_planner.db"
 
 
 def utc_now() -> str:
@@ -269,18 +273,21 @@ def save_plan(payload: dict[str, object], attachments: dict[str, dict[str, objec
 
 
 def load_plan(year: int, month: int, week_number: int) -> dict[str, object] | None:
-    init_db()
-    with connect() as conn:
-        row = conn.execute(
-            """
-            SELECT * FROM plans
-            WHERE year = ? AND month = ? AND week_number = ?
-            """,
-            (year, month, week_number),
-        ).fetchone()
-        if not row:
-            return None
-        return _serialize_plan(conn, row)
+    try:
+        init_db()
+        with connect() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM plans
+                WHERE year = ? AND month = ? AND week_number = ?
+                """,
+                (year, month, week_number),
+            ).fetchone()
+            if not row:
+                return None
+            return _serialize_plan(conn, row)
+    except Exception:
+        return None
 
 
 def save_template(payload: dict[str, object], attachments: dict[str, dict[str, object]]) -> dict[str, object]:
@@ -362,18 +369,21 @@ def save_template(payload: dict[str, object], attachments: dict[str, dict[str, o
 
 
 def load_template(month: int, week_number: int) -> dict[str, object] | None:
-    init_db()
-    with connect() as conn:
-        row = conn.execute(
-            """
-            SELECT * FROM templates
-            WHERE month = ? AND week_number = ?
-            """,
-            (month, week_number),
-        ).fetchone()
-        if not row:
-            return None
-        return _serialize_template(conn, row)
+    try:
+        init_db()
+        with connect() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM templates
+                WHERE month = ? AND week_number = ?
+                """,
+                (month, week_number),
+            ).fetchone()
+            if not row:
+                return None
+            return _serialize_template(conn, row)
+    except Exception:
+        return None
 
 
 def get_attachment(attachment_id: int) -> dict[str, object] | None:
