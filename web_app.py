@@ -168,6 +168,12 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
+        if route == "sync-upload-attachment":
+            try:
+                self.handle_sync_upload_attachment()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
@@ -206,6 +212,7 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             "sync-load",
             "sync-list",
             "sync-delete",
+            "sync-upload-attachment",
         }:
             self.send_json({"ok": True, "route": route, "method": "POST"})
             return
@@ -259,6 +266,8 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             return "sync-delete"
         if path.endswith("/sync-attachment"):
             return "sync-attachment"
+        if path.endswith("/sync-upload-attachment"):
+            return "sync-upload-attachment"
         return path.rsplit("/", 1)[-1]
 
     def read_json_body(self, max_bytes: int = 1_000_000) -> dict[str, object]:
@@ -623,6 +632,29 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Disposition", f'attachment; filename="{attachment["filename"]}"')
         self.end_headers()
         self.wfile.write(content)
+
+    def handle_sync_upload_attachment(self) -> None:
+        token = self._get_auth_token()
+        if not token:
+            self.send_json({"error": "Authentication required."}, HTTPStatus.UNAUTHORIZED)
+            return
+        fields, files = self.parse_multipart_body()
+        field_key = fields.get("fieldKey", "")
+        lookup = json.loads(fields.get("planLookup", "{}"))
+        attachment = next(iter(files.values()), None)
+        if not field_key or not attachment:
+            raise ValueError("Attachment upload is missing.")
+        result = supabase_sync.save_attachment(
+            token,
+            int(lookup.get("year", 0)),
+            int(lookup.get("month", 0)),
+            int(lookup.get("weekNumber", 0)),
+            field_key,
+            str(attachment.get("filename") or "attachment"),
+            str(attachment.get("mimeType") or "application/octet-stream"),
+            bytes(attachment.get("content") or b""),
+        )
+        self.send_json({"fieldKey": field_key, "attachment": result})
 
     def send_json(self, payload: dict[str, str], status: HTTPStatus = HTTPStatus.OK) -> None:
         data = json.dumps(payload).encode("utf-8")

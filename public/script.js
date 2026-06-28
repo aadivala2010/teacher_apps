@@ -41,6 +41,7 @@ var apiRoutes = {
   syncLoad: "/api/sync-load",
   syncList: "/api/sync-list",
   syncDelete: "/api/sync-delete",
+  syncAttachmentUpload: "/api/sync-upload-attachment",
 };
 var plannerDatabaseName = "teacherPlannerDb";
 var plannerDatabaseVersion = 1;
@@ -414,11 +415,80 @@ function handleAuthSignOut() {
   setPlannerStatus("Signed out. Data will no longer sync to the cloud.");
 }
 
+async function uploadAttachmentToCloud(fieldKey, attachment, planLookup) {
+  if (!attachment) {
+    return attachment;
+  }
+  var url = attachment.downloadUrl || "";
+  if (url && !url.startsWith("/api/")) {
+    return attachment;
+  }
+  if (url.startsWith("/api/sync-attachment")) {
+    return attachment;
+  }
+  var blob;
+  if (attachment.dataUrl) {
+    blob = await dataUrlToBlob(attachment.dataUrl);
+  } else if (url.startsWith("/api/")) {
+    try {
+      var resp = await fetch(url);
+      if (resp.ok) {
+        blob = await resp.blob();
+      }
+    } catch (e) {
+      return attachment;
+    }
+  }
+  if (!blob) {
+    return attachment;
+  }
+  var formData = new FormData();
+  formData.append("fieldKey", fieldKey);
+  formData.append("planLookup", JSON.stringify(planLookup));
+  formData.append("attachment", blob, attachment.filename || "attachment");
+  try {
+    var response = await fetch(apiRoutes.syncAttachmentUpload, {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + authToken },
+      body: formData,
+    });
+    if (response.ok) {
+      var data = await response.json();
+      if (data.attachment) {
+        return data.attachment;
+      }
+    }
+  } catch (e) {
+    // Upload failed, return original
+  }
+  return attachment;
+}
+
 async function syncPlanToCloud(record) {
   if (!authToken || !authUser) {
     return null;
   }
   try {
+    var attachments = record.attachments || {};
+    var planLookup = { year: record.year, month: record.month, weekNumber: record.weekNumber };
+    var hasChanges = false;
+    for (var key in attachments) {
+      if (Object.prototype.hasOwnProperty.call(attachments, key)) {
+        var originalDataUrl = attachments[key] && attachments[key].dataUrl;
+        var uploaded = await uploadAttachmentToCloud(key, attachments[key], planLookup);
+        if (uploaded !== attachments[key]) {
+          if (originalDataUrl && !uploaded.dataUrl) {
+            uploaded.dataUrl = originalDataUrl;
+          }
+          attachments[key] = uploaded;
+          hasChanges = true;
+        }
+      }
+    }
+    if (hasChanges) {
+      record.attachments = attachments;
+    }
+
     var response = await fetch(apiRoutes.syncSave, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken },
@@ -784,6 +854,15 @@ function setAttachmentLink(fieldKey, attachment, markRemoved) {
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   link.textContent = "Open";
+  if (link.href.indexOf("/api/sync-attachment") !== -1 && authToken) {
+    link.addEventListener("click", function (e) {
+      e.preventDefault();
+      fetch(link.href, { headers: { "Authorization": "Bearer " + authToken } })
+        .then(function (r) { if (!r.ok) throw new Error(); return r.blob(); })
+        .then(function (blob) { window.open(URL.createObjectURL(blob), "_blank"); })
+        .catch(function () { alert("Could not open the attachment. Make sure you are signed in."); });
+    });
+  }
   controls.appendChild(link);
   removeButton = document.createElement("button");
   removeButton.className = "attachment-remove";
@@ -1503,15 +1582,28 @@ async function handleSavePlan() {
   var record;
   var response;
   var data;
+  var key;
   savePlanButton.disabled = true;
   setPlannerStatus("Saving this week...");
   try {
     payload = plannerPayload();
     if (selectedAttachmentByteTotal() <= maxServerSaveUploadBytes) {
+      attachments = await collectAttachmentsForStorage();
       try {
         response = await postMultipart(apiRoutes.plannerSave, payload);
         data = await response.json();
         if (response.ok && data.plan) {
+          if (data.plan.attachments) {
+            for (key in attachments) {
+              if (Object.prototype.hasOwnProperty.call(attachments, key) && attachments[key].dataUrl) {
+                if (data.plan.attachments[key] && !data.plan.attachments[key].dataUrl) {
+                  data.plan.attachments[key].dataUrl = attachments[key].dataUrl;
+                }
+              }
+            }
+          } else {
+            data.plan.attachments = attachments;
+          }
           await savePlanToIndexedDb(data.plan);
           applyPlannerRecord(data.plan);
           await syncPlanToCloud(data.plan);
@@ -1523,7 +1615,9 @@ async function handleSavePlan() {
       }
     }
 
-    attachments = await collectAttachmentsForStorage();
+    if (!attachments) {
+      attachments = await collectAttachmentsForStorage();
+    }
     record = JSON.parse(JSON.stringify(payload));
     record.attachments = attachments;
     await savePlanToIndexedDb(record);
