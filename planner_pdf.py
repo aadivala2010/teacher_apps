@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import re
 from io import BytesIO
 from pathlib import Path
 
@@ -21,6 +23,11 @@ CENTER_LABELS = {
     "sensory": "Sensory",
     "language_literacy": "Language & Literacy",
 }
+
+# Average character width as a fraction of font size for Calibri/Helvetica
+CHAR_WIDTH_FACTOR = 0.50
+LINE_HEIGHT_FACTOR = 1.35
+MIN_FONT_SIZE = 4.0
 
 
 def _activity_text(plan: dict[str, object], section_name: str, key: str) -> str:
@@ -122,6 +129,79 @@ def _field_map(plan: dict[str, object]) -> dict[str, str]:
     return field_values
 
 
+def _optimal_font_size(text: str, field_width: float, field_height: float, max_size: float) -> float:
+    text_len = len(str(text))
+    if text_len == 0:
+        return max_size
+
+    # Safety margin: reserve 3pt at top and bottom
+    usable_height = max(1.0, field_height - 6.0)
+    lo, hi = MIN_FONT_SIZE, max_size
+    for _ in range(12):
+        mid = (lo + hi) / 2
+        chars_per_line = max(1, field_width / (CHAR_WIDTH_FACTOR * mid))
+        lines_needed = (text_len + chars_per_line - 1) // chars_per_line
+        height_needed = lines_needed * LINE_HEIGHT_FACTOR * mid
+        if height_needed <= usable_height:
+            lo = mid
+        else:
+            hi = mid
+    # Always round DOWN so the result definitely fits
+    return math.floor(lo * 10) / 10
+
+
+def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> None:
+    fields_obj = writer.root_object.get("/AcroForm")
+    if fields_obj is None:
+        return
+    field_entries = fields_obj.get("/Fields")
+    if field_entries is None:
+        return
+
+    re_da = re.compile(r"^\s*/(\w+)\s+([\d.]+)\s+Tf\s")
+
+    def _walk_fields(entries: list) -> None:
+        for entry_ref in entries:
+            entry = entry_ref.get_object()
+            kids = entry.get("/Kids")
+            if kids:
+                _walk_fields(kids)
+                continue
+            name = entry.get("/T")
+            if not name or not isinstance(name, str):
+                continue
+            text = field_values.get(name)
+            if not text:
+                continue
+            ft = entry.get("/FT")
+            if ft != "/Tx":
+                continue
+            rect = entry.get("/Rect")
+            if not rect:
+                continue
+            x1, y1, x2, y2 = rect
+            width = float(x2) - float(x1)
+            height = float(y2) - float(y1)
+            if width <= 0 or height <= 0:
+                continue
+
+            da = str(entry.get("/DA", ""))
+            m = re_da.match(da)
+            if not m:
+                continue
+            font_name = m.group(1)
+            current_size = float(m.group(2))
+            new_size = _optimal_font_size(text, width, height, current_size)
+            if new_size < current_size:
+                entry[NameObject("/DA")] = create_string_object(f"/{font_name} {new_size} Tf 0 g")
+
+    try:
+        from pypdf.generic import NameObject, create_string_object
+        _walk_fields(field_entries)
+    except ImportError:
+        pass
+
+
 def output_filename(plan: dict[str, object]) -> str:
     month_label = str(plan.get("monthLabel") or "Month").strip().replace("/", "-")
     week_number = str(plan.get("weekNumber") or "Week").strip()
@@ -138,6 +218,8 @@ def build_planner_pdf(plan: dict[str, object]) -> tuple[bytes, str]:
     writer.append(reader)
     writer.set_need_appearances_writer()
     field_values = _field_map(plan)
+
+    _auto_fit_text_fields(writer, field_values)
 
     for page in writer.pages:
         writer.update_page_form_field_values(page, field_values, auto_regenerate=True)

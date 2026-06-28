@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import math
 import re
 from copy import deepcopy
 from io import BytesIO
@@ -12,6 +13,7 @@ from docx import Document
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from docx.shared import Pt
 
 
 TEMPLATE_PATH = Path(__file__).resolve().parent / "assets" / "templates" / "lesson-plan-template.docx"
@@ -130,8 +132,55 @@ def _attachment_items(plan: dict[str, object]) -> list[dict[str, object]]:
     return result
 
 
+CHAR_WIDTH_FACTOR = 0.50
+LINE_HEIGHT_FACTOR = 1.35
+DOCX_MIN_FONT = 6.0
+DOCX_MAX_FONT = 11.0
+
+
+def _cell_content_width(table: object, row: int, col: int) -> float:
+    col_widths = [c.width for c in table.columns]
+    tc_pr = table.cell(row, col)._tc.find(qn("w:tcPr"))
+    span_val = 1
+    if tc_pr is not None:
+        gs = tc_pr.find(qn("w:gridSpan"))
+        if gs is not None:
+            span_val = int(gs.get(qn("w:val")) or 1)
+    return sum(col_widths[col:col + span_val]) / 12700
+
+
+def _optimal_docx_font_size(text: str, width_pt: float) -> float:
+    text_len = len(str(text))
+    if text_len == 0 or width_pt <= 0:
+        return DOCX_MAX_FONT
+
+    # Estimate a typical row height in pt; rows auto-expand but we keep output compact
+    usable_height = max(20.0, width_pt * 0.7)
+    lo, hi = DOCX_MIN_FONT, DOCX_MAX_FONT
+    for _ in range(10):
+        mid = (lo + hi) / 2
+        cpl = max(1, width_pt / (CHAR_WIDTH_FACTOR * mid))
+        lines = (text_len + cpl - 1) // cpl
+        height_needed = lines * LINE_HEIGHT_FACTOR * mid
+        if height_needed <= usable_height:
+            lo = mid
+        else:
+            hi = mid
+    return math.floor(lo * 10) / 10
+
+
+def _set_cell_font_size(cell: object, size_pt: float) -> None:
+    for p in cell.paragraphs:
+        for r in p.runs:
+            r.font.size = Pt(size_pt)
+
+
 def _set_cell_text(table: object, row: int, column: int, text: object) -> None:
-    table.cell(row, column).text = str(text or "")
+    cell = table.cell(row, column)
+    cell.text = str(text or "")
+    w = _cell_content_width(table, row, column)
+    fs = _optimal_docx_font_size(str(text or ""), w)
+    _set_cell_font_size(cell, fs)
 
 
 def _fill_day_section(table: object, plan: dict[str, object], section_name: str, text_row: int, assessment_row: int) -> None:

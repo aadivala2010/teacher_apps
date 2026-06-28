@@ -3,6 +3,7 @@ var monthSelect = document.querySelector("#monthSelect");
 var weekSelect = document.querySelector("#weekSelect");
 var classInput = document.querySelector("#classInput");
 var programInput = document.querySelector("#programInput");
+var themeInput = document.querySelector("#themeInput");
 var booksInput = document.querySelector("#booksInput");
 var currentYearLabel = document.querySelector("#currentYearLabel");
 var selectedWeekRange = document.querySelector("#selectedWeekRange");
@@ -916,6 +917,7 @@ function setFieldValue(fieldKey, kind, value) {
 function resetPlannerForm() {
   classInput.value = "";
   programInput.value = "";
+  themeInput.value = "";
   booksInput.value = "";
   currentAttachments = {};
   removedAttachmentFields = {};
@@ -945,6 +947,7 @@ function applyPlannerRecord(record) {
 
   classInput.value = record.className || "";
   programInput.value = record.programName || "";
+  themeInput.value = record.theme || "";
   booksInput.value = record.books || "";
   removedAttachmentFields = {};
 
@@ -1016,6 +1019,7 @@ function plannerPayload() {
     weekEnd: selectedWeekData().endIso,
     className: classInput.value.trim(),
     programName: programInput.value.trim(),
+    theme: themeInput.value.trim(),
     books: booksInput.value.trim(),
     outdoorLearning: document.querySelector('[data-field="outdoor_learning"][data-kind="text"]').value.trim(),
     outdoorAssessment: document.querySelector('[data-field="outdoor_learning"][data-kind="assessment"]').value,
