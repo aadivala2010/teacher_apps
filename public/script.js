@@ -1817,7 +1817,6 @@ function initializePlanner() {
 }
 
 var activityDateInput = document.querySelector("#activityDate");
-var addActivityFieldButton = document.querySelector("#addActivityFieldButton");
 var addSkillFieldButton = document.querySelector("#addSkillFieldButton");
 var addLinkFieldButton = document.querySelector("#addLinkFieldButton");
 var activityFieldsContainer = document.querySelector("#activityFieldsContainer");
@@ -2186,13 +2185,6 @@ function initializeActivityDescriptor() {
     return;
   }
   resetActivityForm();
-
-  if (addActivityFieldButton) {
-    addActivityFieldButton.addEventListener("click", function (e) {
-      e.preventDefault();
-      addFieldToSection(activityFieldsContainer, "Activity");
-    });
-  }
 
   if (addSkillFieldButton) {
     addSkillFieldButton.addEventListener("click", function (e) {
