@@ -8,7 +8,7 @@
       name="description"
       content="Plan circle time, small groups, centers, outdoor learning, templates, and attachments in one weekly teacher planner."
     />
-    <link rel="stylesheet" href="styles.css?v=5" />
+    <link rel="stylesheet" href="styles.css?v=6" />
   </head>
   <body>
     <div class="app-frame">
@@ -143,12 +143,12 @@
 
         <section id="activityDescriptorApp" class="app-view" data-app-view="activity-descriptor" hidden>
           <div class="page-shell">
-            <header class="hero-band">
+            <header class="hero-band app-hero">
               <div class="hero-copy">
                 <p class="eyebrow">Activity Descriptor</p>
                 <h1>Describe learning activities with structured fields</h1>
                 <p class="hero-text">
-                  Create activity descriptions with a date and multiple text fields, save them to the database, and fill your template.
+                  Enter a date, describe activities and skills learned, then apply the data to the activity descriptor template.
                 </p>
               </div>
             </header>
@@ -162,14 +162,6 @@
                   </label>
                 </div>
 
-                <section class="activity-fields-section" aria-labelledby="activityFieldsHeading">
-                  <div class="section-heading">
-                    <h3 id="activityFieldsHeading">Fields</h3>
-                    <button id="addActivityFieldButton" class="icon-button" type="button" aria-label="Add new field">+</button>
-                  </div>
-                  <div id="activityFieldsContainer" class="activity-fields-container"></div>
-                </section>
-
                 <div class="action-row">
                   <button id="loadActivityButton" class="primary-button" type="button">Load Saved Data</button>
                   <button id="saveActivityButton" class="primary-button accent" type="button">Save Data</button>
@@ -178,6 +170,35 @@
                 </div>
 
                 <p id="activityStatus" class="status-text" role="status" aria-live="polite">Fill in the date and activity fields to get started.</p>
+              </section>
+
+              <section class="planner-section" aria-labelledby="activityActivitiesHeading">
+                <div class="section-heading">
+                  <h2 id="activityActivitiesHeading">Activities</h2>
+                  <button id="addActivityFieldButton" class="icon-button" type="button" aria-label="Add activity field">+</button>
+                </div>
+                <div id="activityFieldsContainer" class="activity-fields-container"></div>
+              </section>
+
+              <section class="planner-section" aria-labelledby="activitySkillsHeading">
+                <div class="section-heading">
+                  <h2 id="activitySkillsHeading">Skills Learned</h2>
+                  <button id="addSkillFieldButton" class="icon-button" type="button" aria-label="Add skill field">+</button>
+                </div>
+                <div id="skillFieldsContainer" class="activity-fields-container"></div>
+              </section>
+
+              <section class="planner-section" aria-labelledby="activityLinksHeading">
+                <div class="section-heading">
+                  <h2 id="activityLinksHeading">Links to Learning</h2>
+                </div>
+                <div class="activity-links-display">
+                  <p class="activity-link-item">Language and Literacy</p>
+                  <p class="activity-link-item">Wellness</p>
+                  <p class="activity-link-item">Creative Expression</p>
+                  <p class="activity-link-item">Mathematics</p>
+                  <p class="activity-link-item">Social Emotional</p>
+                </div>
               </section>
             </main>
           </div>
@@ -278,6 +299,6 @@
       </section>
     </div>
 
-    <script src="script.js?v=21"></script>
+    <script src="script.js?v=22"></script>
   </body>
 </html>

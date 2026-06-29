@@ -27,6 +27,7 @@ import blob_storage
 import grid_pdf
 import table_app
 import supabase_sync
+import activity_descriptor_pptx
 
 
 ROOT = Path(__file__).resolve().parent / "public"
@@ -105,6 +106,12 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
         if route == "lesson-plan-copier":
             try:
                 self.handle_lesson_plan_copier()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+        if route == "activity-descriptor-export":
+            try:
+                self.handle_activity_descriptor_export()
             except Exception as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
@@ -196,6 +203,7 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             "book-theme-finder",
             "lesson-plan-copier",
             "grid-pdf",
+            "activity-descriptor-export",
             "planner-save",
             "planner-upload-attachment",
             "planner-load",
@@ -387,6 +395,16 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
         result, filename = planner_pdf.build_planner_pdf(payload)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(result)))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.end_headers()
+        self.wfile.write(result)
+
+    def handle_activity_descriptor_export(self) -> None:
+        payload = self.read_json_body()
+        result, filename = activity_descriptor_pptx.build_activity_descriptor_pptx(payload)
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
         self.send_header("Content-Length", str(len(result)))
         self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.end_headers()

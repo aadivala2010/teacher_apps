@@ -1817,7 +1817,9 @@ function initializePlanner() {
 
 var activityDateInput = document.querySelector("#activityDate");
 var addActivityFieldButton = document.querySelector("#addActivityFieldButton");
+var addSkillFieldButton = document.querySelector("#addSkillFieldButton");
 var activityFieldsContainer = document.querySelector("#activityFieldsContainer");
+var skillFieldsContainer = document.querySelector("#skillFieldsContainer");
 var loadActivityButton = document.querySelector("#loadActivityButton");
 var saveActivityButton = document.querySelector("#saveActivityButton");
 var applyActivityTemplateButton = document.querySelector("#applyActivityTemplateButton");
@@ -1905,74 +1907,84 @@ function loadAllActivitiesFromIndexedDb() {
 
 function activityPayload() {
   var date = activityDateInput.value;
-  var fields = [];
-  var fieldInputs = activityFieldsContainer.querySelectorAll("textarea");
+  var activities = [];
+  var skills = [];
   var i;
-  for (i = 0; i < fieldInputs.length; i += 1) {
-    fields.push(fieldInputs[i].value.trim());
+  var inputs;
+
+  inputs = activityFieldsContainer.querySelectorAll("textarea");
+  for (i = 0; i < inputs.length; i += 1) {
+    activities.push(inputs[i].value.trim());
   }
+
+  inputs = skillFieldsContainer.querySelectorAll("textarea");
+  for (i = 0; i < inputs.length; i += 1) {
+    skills.push(inputs[i].value.trim());
+  }
+
   return {
     date: date,
-    fields: fields,
+    activities: activities,
+    skills: skills,
   };
 }
 
-function renderActivityFields(fields) {
-  activityFieldsContainer.innerHTML = "";
+function renderSectionFields(container, items, sectionLabel) {
+  container.innerHTML = "";
   var i;
-  for (i = 0; i < fields.length; i += 1) {
-    addActivityFieldToUI(fields[i], i);
+  for (i = 0; i < items.length; i += 1) {
+    addFieldToContainer(container, items[i], i, sectionLabel);
   }
-  if (fields.length === 0) {
-    addActivityFieldToUI("", 0);
+  if (items.length === 0) {
+    addFieldToContainer(container, "", 0, sectionLabel);
   }
 }
 
-function addActivityFieldToUI(value, index) {
+function addFieldToContainer(container, value, index, sectionLabel) {
   var fieldItem = document.createElement("div");
   fieldItem.className = "activity-field-item";
   fieldItem.innerHTML =
-    '<label class="field"><span>Field ' + (index + 1) + '</span><textarea placeholder="Enter text for this field..." data-field-index="' + index + '"></textarea></label>' +
+    '<label class="field"><span>' + sectionLabel + " " + (index + 1) + '</span>' +
+    '<textarea placeholder="Enter text..." data-field-index="' + index + '"></textarea></label>' +
     '<button class="activity-field-remove" type="button" data-field-index="' + index + '">−</button>';
 
-  var textarea = fieldItem.querySelector("textarea");
-  textarea.value = value;
+  fieldItem.querySelector("textarea").value = value;
 
-  var removeButton = fieldItem.querySelector(".activity-field-remove");
-  removeButton.addEventListener("click", function (e) {
+  fieldItem.querySelector(".activity-field-remove").addEventListener("click", function (e) {
     e.preventDefault();
-    removeActivityField(index);
+    removeFieldFromContainer(container, index, sectionLabel);
   });
 
-  activityFieldsContainer.appendChild(fieldItem);
+  container.appendChild(fieldItem);
 }
 
-function removeActivityField(index) {
-  var fieldInputs = activityFieldsContainer.querySelectorAll("textarea");
-  var newFields = [];
+function removeFieldFromContainer(container, index, sectionLabel) {
+  var inputs = container.querySelectorAll("textarea");
+  var newItems = [];
   var i;
-  for (i = 0; i < fieldInputs.length; i += 1) {
+  for (i = 0; i < inputs.length; i += 1) {
     if (i !== index) {
-      newFields.push(fieldInputs[i].value.trim());
+      newItems.push(inputs[i].value.trim());
     }
   }
-  renderActivityFields(newFields);
+  renderSectionFields(container, newItems, sectionLabel);
 }
 
-function addActivityField() {
-  var fieldInputs = activityFieldsContainer.querySelectorAll("textarea");
-  var fields = [];
+function addFieldToSection(container, sectionLabel) {
+  var inputs = container.querySelectorAll("textarea");
+  var items = [];
   var i;
-  for (i = 0; i < fieldInputs.length; i += 1) {
-    fields.push(fieldInputs[i].value.trim());
+  for (i = 0; i < inputs.length; i += 1) {
+    items.push(inputs[i].value.trim());
   }
-  fields.push("");
-  renderActivityFields(fields);
+  items.push("");
+  renderSectionFields(container, items, sectionLabel);
 }
 
 function resetActivityForm() {
   activityDateInput.value = "";
-  renderActivityFields([]);
+  renderSectionFields(activityFieldsContainer, [], "Activity");
+  renderSectionFields(skillFieldsContainer, [], "Skill");
   currentActivityData = null;
 }
 
@@ -1987,7 +1999,8 @@ async function loadSelectedActivityIntoForm() {
     return false;
   }
   currentActivityData = record;
-  renderActivityFields(record.fields || []);
+  renderSectionFields(activityFieldsContainer, record.activities || [], "Activity");
+  renderSectionFields(skillFieldsContainer, record.skills || [], "Skill");
   return true;
 }
 
@@ -2036,7 +2049,7 @@ async function handleApplyActivityTemplate() {
   applyActivityTemplateButton.disabled = true;
   setActivityStatus("Applying activity data to template...");
   try {
-    response = await fetch("/api/planner-export-pdf", {
+    response = await fetch("/api/activity-descriptor-export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(activityPayload()),
@@ -2048,7 +2061,7 @@ async function handleApplyActivityTemplate() {
     blob = await response.blob();
     filename = suggestedFilenameFromHeaders(response);
     downloadBlob(blob, filename);
-    setActivityStatus("Template PDF was created from the current data.", "success");
+    setActivityStatus("Activity descriptor template created.", "success");
   } catch (error) {
     setActivityStatus(error.message || "Could not apply the data to the template.", "error");
   } finally {
@@ -2085,7 +2098,14 @@ function initializeActivityDescriptor() {
   if (addActivityFieldButton) {
     addActivityFieldButton.addEventListener("click", function (e) {
       e.preventDefault();
-      addActivityField();
+      addFieldToSection(activityFieldsContainer, "Activity");
+    });
+  }
+
+  if (addSkillFieldButton) {
+    addSkillFieldButton.addEventListener("click", function (e) {
+      e.preventDefault();
+      addFieldToSection(skillFieldsContainer, "Skill");
     });
   }
 
