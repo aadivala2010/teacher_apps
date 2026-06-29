@@ -672,6 +672,63 @@ button {
   gap: 10px;
 }
 
+.activity-fields-section {
+  margin-top: 16px;
+}
+
+.section-heading h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.activity-fields-container {
+  display: grid;
+  gap: 10px;
+}
+
+.activity-field-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffefa;
+}
+
+.activity-field-item textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.activity-field-item .field {
+  gap: 6px;
+}
+
+.activity-field-item .field span {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.activity-field-remove {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8f4ec;
+  color: #9f2f2f;
+  font-weight: 700;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.activity-field-remove:hover {
+  background: rgba(159, 47, 47, 0.1);
+}
+
 @media (max-width: 1180px) {
   .hero-band,
   .grid-tool,

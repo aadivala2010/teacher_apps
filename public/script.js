@@ -1815,4 +1815,364 @@ function initializePlanner() {
   handleSelectedWeekChanged();
 }
 
+var activityDateInput = document.querySelector("#activityDate");
+var addActivityFieldButton = document.querySelector("#addActivityFieldButton");
+var activityFieldsContainer = document.querySelector("#activityFieldsContainer");
+var loadActivityButton = document.querySelector("#loadActivityButton");
+var saveActivityButton = document.querySelector("#saveActivityButton");
+var applyActivityTemplateButton = document.querySelector("#applyActivityTemplateButton");
+var downloadActivityDatabaseButton = document.querySelector("#downloadActivityDatabaseButton");
+var activityStatus = document.querySelector("#activityStatus");
+
+var activityDatabaseName = "activityDescriptorDb";
+var activityDatabaseVersion = 1;
+var activityStoreName = "activities";
+var currentActivityData = null;
+
+function setActivityStatus(message, kind) {
+  if (!activityStatus) {
+    return;
+  }
+  activityStatus.textContent = message;
+  activityStatus.className = "status-text" + (kind ? " " + kind : "");
+}
+
+function initActivityDatabase() {
+  return new Promise(function (resolve, reject) {
+    var request = indexedDB.open(activityDatabaseName, activityDatabaseVersion);
+    request.onerror = function () {
+      reject(new Error("Could not open activity database."));
+    };
+    request.onsuccess = function () {
+      resolve(request.result);
+    };
+    request.onupgradeneeded = function (event) {
+      var db = event.target.result;
+      if (!db.objectStoreNames.contains(activityStoreName)) {
+        db.createObjectStore(activityStoreName, { keyPath: "date" });
+      }
+    };
+  });
+}
+
+function saveActivityToIndexedDb(record) {
+  return initActivityDatabase().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var transaction = db.transaction([activityStoreName], "readwrite");
+      var store = transaction.objectStore(activityStoreName);
+      var request = store.put(record);
+      request.onerror = function () {
+        reject(new Error("Could not save activity."));
+      };
+      request.onsuccess = function () {
+        resolve(record);
+      };
+    });
+  });
+}
+
+function loadActivityFromIndexedDb(date) {
+  return initActivityDatabase().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var transaction = db.transaction([activityStoreName], "readonly");
+      var store = transaction.objectStore(activityStoreName);
+      var request = store.get(date);
+      request.onerror = function () {
+        reject(new Error("Could not load activity."));
+      };
+      request.onsuccess = function () {
+        resolve(request.result || null);
+      };
+    });
+  });
+}
+
+function loadAllActivitiesFromIndexedDb() {
+  return initActivityDatabase().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var transaction = db.transaction([activityStoreName], "readonly");
+      var store = transaction.objectStore(activityStoreName);
+      var request = store.getAll();
+      request.onerror = function () {
+        reject(new Error("Could not load activities."));
+      };
+      request.onsuccess = function () {
+        resolve(request.result || []);
+      };
+    });
+  });
+}
+
+function activityPayload() {
+  var date = activityDateInput.value;
+  var fields = [];
+  var fieldInputs = activityFieldsContainer.querySelectorAll("textarea");
+  var i;
+  for (i = 0; i < fieldInputs.length; i += 1) {
+    fields.push(fieldInputs[i].value.trim());
+  }
+  return {
+    date: date,
+    fields: fields,
+  };
+}
+
+function renderActivityFields(fields) {
+  activityFieldsContainer.innerHTML = "";
+  var i;
+  for (i = 0; i < fields.length; i += 1) {
+    addActivityFieldToUI(fields[i], i);
+  }
+  if (fields.length === 0) {
+    addActivityFieldToUI("", 0);
+  }
+}
+
+function addActivityFieldToUI(value, index) {
+  var fieldItem = document.createElement("div");
+  fieldItem.className = "activity-field-item";
+  fieldItem.innerHTML =
+    '<label class="field"><span>Field ' + (index + 1) + '</span><textarea placeholder="Enter text for this field..." data-field-index="' + index + '"></textarea></label>' +
+    '<button class="activity-field-remove" type="button" data-field-index="' + index + '">−</button>';
+
+  var textarea = fieldItem.querySelector("textarea");
+  textarea.value = value;
+
+  var removeButton = fieldItem.querySelector(".activity-field-remove");
+  removeButton.addEventListener("click", function (e) {
+    e.preventDefault();
+    removeActivityField(index);
+  });
+
+  activityFieldsContainer.appendChild(fieldItem);
+}
+
+function removeActivityField(index) {
+  var fieldInputs = activityFieldsContainer.querySelectorAll("textarea");
+  var newFields = [];
+  var i;
+  for (i = 0; i < fieldInputs.length; i += 1) {
+    if (i !== index) {
+      newFields.push(fieldInputs[i].value.trim());
+    }
+  }
+  renderActivityFields(newFields);
+}
+
+function addActivityField() {
+  var fieldInputs = activityFieldsContainer.querySelectorAll("textarea");
+  var fields = [];
+  var i;
+  for (i = 0; i < fieldInputs.length; i += 1) {
+    fields.push(fieldInputs[i].value.trim());
+  }
+  fields.push("");
+  renderActivityFields(fields);
+}
+
+function resetActivityForm() {
+  activityDateInput.value = "";
+  renderActivityFields([]);
+  currentActivityData = null;
+}
+
+async function loadSelectedActivityIntoForm() {
+  var date = activityDateInput.value;
+  if (!date) {
+    resetActivityForm();
+    return false;
+  }
+  var record = await loadActivityFromIndexedDb(date);
+  if (!record) {
+    return false;
+  }
+  currentActivityData = record;
+  renderActivityFields(record.fields || []);
+  return true;
+}
+
+async function handleLoadActivity() {
+  loadActivityButton.disabled = true;
+  setActivityStatus("Loading saved activity...");
+  try {
+    if (!(await loadSelectedActivityIntoForm())) {
+      setActivityStatus("No saved activity was found for this date.");
+      return;
+    }
+    setActivityStatus("Activity loaded.", "success");
+  } catch (error) {
+    setActivityStatus(error.message || "Could not load the activity.", "error");
+  } finally {
+    loadActivityButton.disabled = false;
+  }
+}
+
+async function handleSaveActivity() {
+  var payload;
+  var record;
+  saveActivityButton.disabled = true;
+  setActivityStatus("Saving this activity...");
+  try {
+    payload = activityPayload();
+    if (!payload.date) {
+      throw new Error("Please enter a date.");
+    }
+    record = JSON.parse(JSON.stringify(payload));
+    await saveActivityToIndexedDb(record);
+    currentActivityData = record;
+    setActivityStatus("Activity saved on this device.", "success");
+  } catch (error) {
+    setActivityStatus(error.message || "Could not save the activity.", "error");
+  } finally {
+    saveActivityButton.disabled = false;
+  }
+}
+
+async function handleApplyActivityTemplate() {
+  var response;
+  var blob;
+  var errorData;
+  var filename;
+  applyActivityTemplateButton.disabled = true;
+  setActivityStatus("Applying activity data to template...");
+  try {
+    response = await fetch("/api/planner-export-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(activityPayload()),
+    });
+    if (!response.ok) {
+      errorData = await response.json();
+      throw new Error(errorData.error || "Could not apply the data to the template.");
+    }
+    blob = await response.blob();
+    filename = suggestedFilenameFromHeaders(response);
+    downloadBlob(blob, filename);
+    setActivityStatus("Template PDF was created from the current data.", "success");
+  } catch (error) {
+    setActivityStatus(error.message || "Could not apply the data to the template.", "error");
+  } finally {
+    applyActivityTemplateButton.disabled = false;
+  }
+}
+
+async function handleDownloadActivityDatabase() {
+  downloadActivityDatabaseButton.disabled = true;
+  setActivityStatus("Exporting all activities...");
+  try {
+    var activities = await loadAllActivitiesFromIndexedDb();
+    if (!activities || !activities.length) {
+      setActivityStatus("No saved activities to export.");
+      return;
+    }
+    var jsonStr = JSON.stringify(activities, null, 2);
+    var blob = new Blob([jsonStr], { type: "application/json" });
+    downloadBlob(blob, "activity_descriptor_database.json");
+    setActivityStatus("Activity database exported.", "success");
+  } catch (error) {
+    setActivityStatus(error.message || "Could not export the database.", "error");
+  } finally {
+    downloadActivityDatabaseButton.disabled = false;
+  }
+}
+
+function initializeActivityDescriptor() {
+  if (!activityDateInput) {
+    return;
+  }
+  resetActivityForm();
+
+  if (addActivityFieldButton) {
+    addActivityFieldButton.addEventListener("click", function (e) {
+      e.preventDefault();
+      addActivityField();
+    });
+  }
+
+  if (loadActivityButton) {
+    loadActivityButton.addEventListener("click", handleLoadActivity);
+  }
+
+  if (saveActivityButton) {
+    saveActivityButton.addEventListener("click", handleSaveActivity);
+  }
+
+  if (applyActivityTemplateButton) {
+    applyActivityTemplateButton.addEventListener("click", handleApplyActivityTemplate);
+  }
+
+  if (downloadActivityDatabaseButton) {
+    downloadActivityDatabaseButton.addEventListener("click", handleDownloadActivityDatabase);
+  }
+
+  activityDateInput.addEventListener("change", function () {
+    loadSelectedActivityIntoForm();
+  });
+}
+
+function initializePlanner() {
+  initializeAppTabs();
+  initializeActivityDescriptor();
+  checkAuth();
+  renderYearOptions();
+  currentYearLabel.textContent = String(selectedYear());
+  renderMonthOptions();
+  renderWeekOptions();
+  renderWeekDays();
+  renderSectionGrids();
+  document.addEventListener("change", handleAttachmentInputChange);
+  document.addEventListener("click", handleAttachmentRemoveClick);
+  if (gridGenerateButton) {
+    gridGenerateButton.addEventListener("click", handleGridGenerate);
+  }
+
+  if (authButton) {
+    authButton.addEventListener("click", openAuthModal);
+  }
+  if (closeAuthModalButton) {
+    closeAuthModalButton.addEventListener("click", closeAuthModal);
+  }
+  if (authSignInButton) {
+    authSignInButton.addEventListener("click", handleAuthSignIn);
+  }
+  if (authSignUpButton) {
+    authSignUpButton.addEventListener("click", handleAuthSignUp);
+  }
+  if (authSignOutButton) {
+    authSignOutButton.addEventListener("click", handleAuthSignOut);
+  }
+  if (authModal) {
+    authModal.addEventListener("click", function (event) {
+      if (event.target === authModal) {
+        closeAuthModal();
+      }
+    });
+  }
+
+  yearSelect.addEventListener("change", function () {
+    renderWeekOptions();
+    handleSelectedWeekChanged();
+  });
+
+  monthSelect.addEventListener("change", function () {
+    renderWeekOptions();
+    handleSelectedWeekChanged();
+  });
+
+  weekSelect.addEventListener("change", handleSelectedWeekChanged);
+  savePlanButton.addEventListener("click", handleSavePlan);
+  loadPlanButton.addEventListener("click", handleLoadPlan);
+  applyCurrentTemplateButton.addEventListener("click", handleApplyCurrentTemplate);
+  downloadDatabaseButton.addEventListener("click", handleDownloadDatabase);
+  closeDatabaseModalButton.addEventListener("click", closeDatabaseModal);
+  cancelDatabaseDownloadButton.addEventListener("click", closeDatabaseModal);
+  confirmDatabaseDownloadButton.addEventListener("click", handleConfirmDatabaseDownload);
+  databaseModal.addEventListener("click", function (event) {
+    if (event.target === databaseModal) {
+      closeDatabaseModal();
+    }
+  });
+  handleSelectedWeekChanged();
+}
+
 initializePlanner();

@@ -30,6 +30,10 @@
             <strong>Weekly Planner</strong>
             <span>Save weeks and fill templates</span>
           </button>
+          <button class="app-tab" type="button" data-app-tab="activity-descriptor" aria-selected="false">
+            <strong>Activity Descriptor</strong>
+            <span>Create activity descriptions</span>
+          </button>
           <button class="app-tab" type="button" data-app-tab="grid" aria-selected="false">
             <strong>Image Grid PDF</strong>
             <span>Make a 2x2 image PDF</span>
@@ -133,6 +137,48 @@
           </div>
           <div id="centersGrid" class="center-grid"></div>
         </section>
+            </main>
+          </div>
+        </section>
+
+        <section id="activityDescriptorApp" class="app-view" data-app-view="activity-descriptor" hidden>
+          <div class="page-shell">
+            <header class="hero-band">
+              <div class="hero-copy">
+                <p class="eyebrow">Activity Descriptor</p>
+                <h1>Describe learning activities with structured fields</h1>
+                <p class="hero-text">
+                  Create activity descriptions with a date and multiple text fields, save them to the database, and fill your template.
+                </p>
+              </div>
+            </header>
+
+            <main class="planner-layout">
+              <section class="control-band" aria-label="Activity descriptor controls">
+                <div class="control-grid">
+                  <label class="field">
+                    <span>Date</span>
+                    <input id="activityDate" name="date" type="date" />
+                  </label>
+                </div>
+
+                <section class="activity-fields-section" aria-labelledby="activityFieldsHeading">
+                  <div class="section-heading">
+                    <h3 id="activityFieldsHeading">Fields</h3>
+                    <button id="addActivityFieldButton" class="icon-button" type="button" aria-label="Add new field">+</button>
+                  </div>
+                  <div id="activityFieldsContainer" class="activity-fields-container"></div>
+                </section>
+
+                <div class="action-row">
+                  <button id="loadActivityButton" class="primary-button" type="button">Load Saved Data</button>
+                  <button id="saveActivityButton" class="primary-button accent" type="button">Save Data</button>
+                  <button id="applyActivityTemplateButton" class="secondary-button" type="button">Apply Data to Template</button>
+                  <button id="downloadActivityDatabaseButton" class="secondary-button" type="button">Download Database</button>
+                </div>
+
+                <p id="activityStatus" class="status-text" role="status" aria-live="polite">Fill in the date and activity fields to get started.</p>
+              </section>
             </main>
           </div>
         </section>
