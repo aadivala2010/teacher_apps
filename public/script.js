@@ -1831,6 +1831,17 @@ var activityDatabaseVersion = 1;
 var activityStoreName = "activities";
 var currentActivityData = null;
 
+var defaultSkills = [
+  "Associates meaning to familiar words",
+  "Attends to baby sign language",
+  "Reaches for toys",
+  "Grasps toys",
+  "Uses fingers and palms to hold objects",
+  "Explores texture and sensation",
+  "Explores multi-sensory activities",
+  "Shows some understanding of cause and effect",
+];
+
 function setActivityStatus(message, kind) {
   if (!activityStatus) {
     return;
@@ -1984,7 +1995,7 @@ function addFieldToSection(container, sectionLabel) {
 function resetActivityForm() {
   activityDateInput.value = "";
   renderSectionFields(activityFieldsContainer, [], "Activity");
-  renderSectionFields(skillFieldsContainer, [], "Skill");
+  renderSectionFields(skillFieldsContainer, defaultSkills.slice(), "Skill");
   currentActivityData = null;
 }
 
@@ -1996,11 +2007,13 @@ async function loadSelectedActivityIntoForm() {
   }
   var record = await loadActivityFromIndexedDb(date);
   if (!record) {
+    renderSectionFields(activityFieldsContainer, [], "Activity");
+    renderSectionFields(skillFieldsContainer, defaultSkills.slice(), "Skill");
     return false;
   }
   currentActivityData = record;
   renderSectionFields(activityFieldsContainer, record.activities || [], "Activity");
-  renderSectionFields(skillFieldsContainer, record.skills || [], "Skill");
+  renderSectionFields(skillFieldsContainer, record.skills && record.skills.length ? record.skills : defaultSkills.slice(), "Skill");
   return true;
 }
 
