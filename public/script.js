@@ -364,6 +364,7 @@ async function handleAuthSignIn() {
     closeAuthModal();
     setPlannerStatus("Signed in as " + data.user.email + ". Syncing data...");
     syncAllLocalToCloud();
+    syncAllLocalActivitiesToCloud();
   } catch (error) {
     authStatus.textContent = error.message || "Could not sign in.";
     authStatus.className = "status-text error";
@@ -1818,8 +1819,10 @@ function initializePlanner() {
 var activityDateInput = document.querySelector("#activityDate");
 var addActivityFieldButton = document.querySelector("#addActivityFieldButton");
 var addSkillFieldButton = document.querySelector("#addSkillFieldButton");
+var addLinkFieldButton = document.querySelector("#addLinkFieldButton");
 var activityFieldsContainer = document.querySelector("#activityFieldsContainer");
 var skillFieldsContainer = document.querySelector("#skillFieldsContainer");
+var linkFieldsContainer = document.querySelector("#linkFieldsContainer");
 var loadActivityButton = document.querySelector("#loadActivityButton");
 var saveActivityButton = document.querySelector("#saveActivityButton");
 var applyActivityTemplateButton = document.querySelector("#applyActivityTemplateButton");
@@ -1831,15 +1834,12 @@ var activityDatabaseVersion = 1;
 var activityStoreName = "activities";
 var currentActivityData = null;
 
-var defaultSkills = [
-  "Associates meaning to familiar words",
-  "Attends to baby sign language",
-  "Reaches for toys",
-  "Grasps toys",
-  "Uses fingers and palms to hold objects",
-  "Explores texture and sensation",
-  "Explores multi-sensory activities",
-  "Shows some understanding of cause and effect",
+var defaultLinks = [
+  "Language and Literacy",
+  "Wellness",
+  "Creative Expression",
+  "Mathematics",
+  "Social Emotional",
 ];
 
 function setActivityStatus(message, kind) {
@@ -1920,6 +1920,7 @@ function activityPayload() {
   var date = activityDateInput.value;
   var activities = [];
   var skills = [];
+  var links = [];
   var i;
   var inputs;
 
@@ -1933,10 +1934,16 @@ function activityPayload() {
     skills.push(inputs[i].value.trim());
   }
 
+  inputs = linkFieldsContainer.querySelectorAll("textarea");
+  for (i = 0; i < inputs.length; i += 1) {
+    links.push(inputs[i].value.trim());
+  }
+
   return {
     date: date,
     activities: activities,
     skills: skills,
+    links: links,
   };
 }
 
@@ -1995,7 +2002,8 @@ function addFieldToSection(container, sectionLabel) {
 function resetActivityForm() {
   activityDateInput.value = "";
   renderSectionFields(activityFieldsContainer, [], "Activity");
-  renderSectionFields(skillFieldsContainer, defaultSkills.slice(), "Skill");
+  renderSectionFields(skillFieldsContainer, [], "Skill");
+  renderSectionFields(linkFieldsContainer, defaultLinks.slice(), "Link");
   currentActivityData = null;
 }
 
@@ -2006,14 +2014,27 @@ async function loadSelectedActivityIntoForm() {
     return false;
   }
   var record = await loadActivityFromIndexedDb(date);
+  if (!record && authToken && authUser) {
+    try {
+      var cloudRecord = await loadActivityFromCloud(date);
+      if (cloudRecord) {
+        await saveActivityToIndexedDb(cloudRecord);
+        record = cloudRecord;
+      }
+    } catch (e) {
+      // cloud load failed, continue with local miss
+    }
+  }
   if (!record) {
     renderSectionFields(activityFieldsContainer, [], "Activity");
-    renderSectionFields(skillFieldsContainer, defaultSkills.slice(), "Skill");
+    renderSectionFields(skillFieldsContainer, [], "Skill");
+    renderSectionFields(linkFieldsContainer, defaultLinks.slice(), "Link");
     return false;
   }
   currentActivityData = record;
   renderSectionFields(activityFieldsContainer, record.activities || [], "Activity");
-  renderSectionFields(skillFieldsContainer, record.skills && record.skills.length ? record.skills : defaultSkills.slice(), "Skill");
+  renderSectionFields(skillFieldsContainer, record.skills || [], "Skill");
+  renderSectionFields(linkFieldsContainer, record.links && record.links.length ? record.links : defaultLinks.slice(), "Link");
   return true;
 }
 
@@ -2033,6 +2054,63 @@ async function handleLoadActivity() {
   }
 }
 
+async function syncActivityToCloud(record) {
+  if (!authToken || !authUser) {
+    return null;
+  }
+  try {
+    var response = await fetch("/api/activity-descriptor-sync-save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken },
+      body: JSON.stringify(record),
+    });
+    var data = await response.json();
+    if (response.ok && data.activity) {
+      return data.activity;
+    }
+  } catch (e) {
+    // silent
+  }
+  return null;
+}
+
+async function loadActivityFromCloud(date) {
+  if (!authToken || !authUser) {
+    return null;
+  }
+  try {
+    var response = await fetch("/api/activity-descriptor-sync-load", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken },
+      body: JSON.stringify({ date: date }),
+    });
+    var data = await response.json();
+    if (response.ok && data.activity) {
+      return data.activity;
+    }
+  } catch (e) {
+    // silent
+  }
+  return null;
+}
+
+async function syncAllLocalActivitiesToCloud() {
+  if (!authToken || !authUser) {
+    return;
+  }
+  try {
+    var localActivities = await loadAllActivitiesFromIndexedDb();
+    if (!localActivities || !localActivities.length) {
+      return;
+    }
+    for (var i = 0; i < localActivities.length; i += 1) {
+      await syncActivityToCloud(localActivities[i]);
+    }
+  } catch (e) {
+    // silent
+  }
+}
+
 async function handleSaveActivity() {
   var payload;
   var record;
@@ -2046,7 +2124,8 @@ async function handleSaveActivity() {
     record = JSON.parse(JSON.stringify(payload));
     await saveActivityToIndexedDb(record);
     currentActivityData = record;
-    setActivityStatus("Activity saved on this device.", "success");
+    syncActivityToCloud(record);
+    setActivityStatus("Activity saved." + (authToken && authUser ? " Syncing to cloud..." : ""), "success");
   } catch (error) {
     setActivityStatus(error.message || "Could not save the activity.", "error");
   } finally {
@@ -2119,6 +2198,13 @@ function initializeActivityDescriptor() {
     addSkillFieldButton.addEventListener("click", function (e) {
       e.preventDefault();
       addFieldToSection(skillFieldsContainer, "Skill");
+    });
+  }
+
+  if (addLinkFieldButton) {
+    addLinkFieldButton.addEventListener("click", function (e) {
+      e.preventDefault();
+      addFieldToSection(linkFieldsContainer, "Link");
     });
   }
 

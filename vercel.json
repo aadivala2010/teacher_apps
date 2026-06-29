@@ -93,6 +93,22 @@
     {
       "source": "/api/sync-attachment",
       "destination": "/api/index?route=sync-attachment"
+    },
+    {
+      "source": "/api/activity-descriptor-export",
+      "destination": "/api/index?route=activity-descriptor-export"
+    },
+    {
+      "source": "/api/activity-descriptor-sync-save",
+      "destination": "/api/index?route=activity-descriptor-sync-save"
+    },
+    {
+      "source": "/api/activity-descriptor-sync-load",
+      "destination": "/api/index?route=activity-descriptor-sync-load"
+    },
+    {
+      "source": "/api/activity-descriptor-sync-list",
+      "destination": "/api/index?route=activity-descriptor-sync-list"
     }
   ]
 }

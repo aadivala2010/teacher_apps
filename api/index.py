@@ -18,6 +18,7 @@ import blob_storage
 import grid_pdf
 import table_app
 import supabase_sync
+import activity_descriptor_pptx
 from web_app import generate_preschool_books
 
 
@@ -60,6 +61,18 @@ class handler(BaseHTTPRequestHandler):
                 return
             if route == "lesson-plan-copier":
                 self.handle_lesson_plan_copier()
+                return
+            if route == "activity-descriptor-export":
+                self.handle_activity_descriptor_export()
+                return
+            if route == "activity-descriptor-sync-save":
+                self.handle_activity_descriptor_sync_save()
+                return
+            if route == "activity-descriptor-sync-load":
+                self.handle_activity_descriptor_sync_load()
+                return
+            if route == "activity-descriptor-sync-list":
+                self.handle_activity_descriptor_sync_list()
                 return
             if route == "grid-pdf":
                 self.handle_grid_pdf()
@@ -106,6 +119,10 @@ class handler(BaseHTTPRequestHandler):
         if route in {
             "book-theme-finder",
             "lesson-plan-copier",
+            "activity-descriptor-export",
+            "activity-descriptor-sync-save",
+            "activity-descriptor-sync-load",
+            "activity-descriptor-sync-list",
             "grid-pdf",
             "planner-save",
             "planner-upload-attachment",
@@ -140,6 +157,14 @@ class handler(BaseHTTPRequestHandler):
             return "book-theme-finder"
         if path.endswith("/lesson-plan-copier") or path.endswith("/lesson_plan_copier"):
             return "lesson-plan-copier"
+        if path.endswith("/activity-descriptor-export"):
+            return "activity-descriptor-export"
+        if path.endswith("/activity-descriptor-sync-save"):
+            return "activity-descriptor-sync-save"
+        if path.endswith("/activity-descriptor-sync-load"):
+            return "activity-descriptor-sync-load"
+        if path.endswith("/activity-descriptor-sync-list"):
+            return "activity-descriptor-sync-list"
         if path.endswith("/grid-pdf") or path.endswith("/grid_pdf"):
             return "grid-pdf"
         if path.endswith("/planner-save"):
@@ -294,6 +319,33 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Content-Disposition", f'attachment; filename="{attachment["filename"]}"')
         self.end_headers()
         self.wfile.write(content)
+
+    def handle_activity_descriptor_export(self) -> None:
+        payload = self.read_json_body()
+        result, filename = activity_descriptor_pptx.build_activity_descriptor_pptx(payload)
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+        self.send_header("Content-Length", str(len(result)))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.end_headers()
+        self.wfile.write(result)
+
+    def handle_activity_descriptor_sync_save(self) -> None:
+        token = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+        payload = self.read_json_body()
+        result = supabase_sync.save_activity(token, payload)
+        self.send_json({"activity": result})
+
+    def handle_activity_descriptor_sync_load(self) -> None:
+        token = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+        payload = self.read_json_body()
+        result = supabase_sync.load_activity(token, str(payload.get("date", "")))
+        self.send_json({"activity": result})
+
+    def handle_activity_descriptor_sync_list(self) -> None:
+        token = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+        result = supabase_sync.list_activities(token)
+        self.send_json({"activities": result})
 
     def handle_planner_export_pdf(self) -> None:
         payload = self.read_json_body()

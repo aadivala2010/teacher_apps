@@ -8,7 +8,7 @@
       name="description"
       content="Plan circle time, small groups, centers, outdoor learning, templates, and attachments in one weekly teacher planner."
     />
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
   </head>
   <body>
     <div class="app-frame">
@@ -191,14 +191,9 @@
               <section class="planner-section" aria-labelledby="activityLinksHeading">
                 <div class="section-heading">
                   <h2 id="activityLinksHeading">Links to Learning</h2>
+                  <button id="addLinkFieldButton" class="icon-button" type="button" aria-label="Add link field">+</button>
                 </div>
-                <div class="activity-links-display">
-                  <p class="activity-link-item">Language and Literacy</p>
-                  <p class="activity-link-item">Wellness</p>
-                  <p class="activity-link-item">Creative Expression</p>
-                  <p class="activity-link-item">Mathematics</p>
-                  <p class="activity-link-item">Social Emotional</p>
-                </div>
+                <div id="linkFieldsContainer" class="activity-fields-container"></div>
               </section>
             </main>
           </div>
@@ -299,6 +294,6 @@
       </section>
     </div>
 
-    <script src="script.js?v=23"></script>
+    <script src="script.js?v=24"></script>
   </body>
 </html>

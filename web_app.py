@@ -115,6 +115,24 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
+        if route == "activity-descriptor-sync-save":
+            try:
+                self.handle_activity_descriptor_sync_save()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+        if route == "activity-descriptor-sync-load":
+            try:
+                self.handle_activity_descriptor_sync_load()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+        if route == "activity-descriptor-sync-list":
+            try:
+                self.handle_activity_descriptor_sync_list()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
         if route == "grid-pdf":
             try:
                 self.handle_grid_pdf()
@@ -409,6 +427,23 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.end_headers()
         self.wfile.write(result)
+
+    def handle_activity_descriptor_sync_save(self) -> None:
+        token = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+        payload = self.read_json_body()
+        result = supabase_sync.save_activity(token, payload)
+        self.send_json({"activity": result})
+
+    def handle_activity_descriptor_sync_load(self) -> None:
+        token = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+        payload = self.read_json_body()
+        result = supabase_sync.load_activity(token, str(payload.get("date", "")))
+        self.send_json({"activity": result})
+
+    def handle_activity_descriptor_sync_list(self) -> None:
+        token = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+        result = supabase_sync.list_activities(token)
+        self.send_json({"activities": result})
 
     def handle_planner_export_docx(self) -> None:
         payload = self.read_json_body(max_bytes=MAX_UPLOAD_BYTES)

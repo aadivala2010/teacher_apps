@@ -729,20 +729,6 @@ button {
   background: rgba(159, 47, 47, 0.1);
 }
 
-.activity-links-display {
-  display: grid;
-  gap: 6px;
-}
-
-.activity-link-item {
-  margin: 0;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(30, 120, 112, 0.035);
-  color: var(--ink);
-  font-size: 0.96rem;
-}
 
 @media (max-width: 1180px) {
   .hero-band,

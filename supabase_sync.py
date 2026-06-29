@@ -317,6 +317,99 @@ def save_attachment(
     }
 
 
+def _activity_path(user_id: str, date: str) -> str:
+    return f"{user_id}/activities/{date}.json"
+
+
+def _activity_list_prefix(user_id: str) -> str:
+    return f"{user_id}/activities/"
+
+
+def save_activity(access_token: str, payload: dict[str, Any]) -> dict[str, Any]:
+    user = get_user(access_token)
+    if not user:
+        raise ValueError("Invalid access token.")
+    init_bucket()
+
+    activity_data = {
+        "date": payload.get("date", ""),
+        "activities": payload.get("activities") or [],
+        "skills": payload.get("skills") or [],
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+    path = _activity_path(user["id"], activity_data["date"])
+    content = json.dumps(activity_data, ensure_ascii=True).encode("utf-8")
+
+    try:
+        _bucket().remove(path)
+    except Exception:
+        pass
+
+    try:
+        _bucket().upload(path, content, {"content-type": "application/json"})
+    except Exception:
+        pass
+
+    return activity_data
+
+
+def load_activity(access_token: str, date: str) -> dict[str, Any] | None:
+    user = get_user(access_token)
+    if not user:
+        raise ValueError("Invalid access token.")
+    init_bucket()
+
+    path = _activity_path(user["id"], date)
+    try:
+        content = _bucket().download(path)
+        if isinstance(content, bytes):
+            content = content.decode("utf-8")
+        data = json.loads(content)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    return None
+
+
+def list_activities(access_token: str) -> list[dict[str, Any]]:
+    user = get_user(access_token)
+    if not user:
+        raise ValueError("Invalid access token.")
+    init_bucket()
+
+    prefix = _activity_list_prefix(user["id"])
+    activities: list[dict[str, Any]] = []
+
+    try:
+        bucket = _bucket()
+        objects = bucket.list(prefix)
+        for obj in objects:
+            name = None
+            if isinstance(obj, dict):
+                name = obj.get("name", "")
+            elif hasattr(obj, "name"):
+                name = obj.name
+            if not name or not str(name).endswith(".json"):
+                continue
+            full_path = prefix + str(name)
+            try:
+                content = bucket.download(full_path)
+                if isinstance(content, bytes):
+                    content = content.decode("utf-8")
+                data = json.loads(content)
+                if isinstance(data, dict):
+                    activities.append(data)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    activities.sort(key=lambda a: a.get("date", ""))
+    return activities
+
+
 def get_attachment(access_token: str, path: str) -> dict[str, Any] | None:
     user = get_user(access_token)
     if not user:

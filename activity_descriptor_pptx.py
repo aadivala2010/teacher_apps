@@ -74,6 +74,7 @@ def build_activity_descriptor_pptx(payload: dict) -> tuple[bytes, str]:
     date_str = str(payload.get("date", ""))
     activities = payload.get("activities", [])
     skills = payload.get("skills", [])
+    links = payload.get("links", [])
 
     prs = Presentation(str(TEMPLATE_PATH))
     slide = prs.slides[0]
@@ -90,7 +91,10 @@ def build_activity_descriptor_pptx(payload: dict) -> tuple[bytes, str]:
         elif name == "Text Box 20":
             text = "\n".join(s for s in skills if s)
             _set_text_box(shape, text)
-        # Text Box 21 (Links) is intentionally left unchanged
+        elif name == "Text Box 21":
+            if links:
+                text = "\n".join(l for l in links if l)
+                _set_text_box(shape, text)
 
     buf = BytesIO()
     prs.save(buf)
