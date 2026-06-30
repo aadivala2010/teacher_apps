@@ -118,8 +118,19 @@ def _set_text_box(shape, text: str) -> None:
         parent.append(new_p)
 
 
+def _format_date_mm_dd_yyyy(date_str: str) -> str:
+    if not date_str:
+        return ""
+    try:
+        parts = date_str.split("-")
+        return f"{parts[1]}/{parts[2]}/{parts[0]}"
+    except (IndexError, ValueError):
+        return date_str
+
+
 def build_activity_descriptor_pptx(payload: dict) -> tuple[bytes, str]:
-    date_str = str(payload.get("date", ""))
+    raw_date = str(payload.get("date", ""))
+    date_str = _format_date_mm_dd_yyyy(raw_date)
     activities = payload.get("activities", [])
     skills = payload.get("skills", [])
     links = payload.get("links", [])
@@ -147,5 +158,5 @@ def build_activity_descriptor_pptx(payload: dict) -> tuple[bytes, str]:
     buf = BytesIO()
     prs.save(buf)
     buf.seek(0)
-    filename = f"activity_descriptor_{date_str or 'export'}.pptx"
+    filename = f"activity_descriptor_{raw_date or 'export'}.pptx"
     return buf.read(), filename

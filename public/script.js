@@ -615,7 +615,15 @@ function endOfWorkWeek(date) {
 }
 
 function formatDateLabel(date) {
-  return monthNames[date.getMonth()].slice(0, 3) + " " + date.getDate();
+  var month = String(date.getMonth() + 1).padStart(2, "0");
+  var day = String(date.getDate()).padStart(2, "0");
+  return month + "/" + day + "/" + date.getFullYear();
+}
+
+function formatIsoToDisplay(isoDate) {
+  if (!isoDate) return "";
+  var parts = isoDate.split("-");
+  return parts[1] + "/" + parts[2] + "/" + parts[0];
 }
 
 function formatDateIso(date) {
@@ -1392,7 +1400,7 @@ function databasePlanLabel(plan) {
 function databasePlanDetail(plan) {
   var parts = [];
   if (plan.weekStart && plan.weekEnd) {
-    parts.push(plan.weekStart + " to " + plan.weekEnd);
+    parts.push(formatIsoToDisplay(plan.weekStart) + " to " + formatIsoToDisplay(plan.weekEnd));
   }
   if (plan.className) {
     parts.push(plan.className);
