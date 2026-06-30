@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import tempfile
 import uuid
 from email.parser import BytesParser
@@ -106,10 +107,20 @@ class handler(BaseHTTPRequestHandler):
                 return
             self.send_json({"error": "Unknown API route."}, HTTPStatus.NOT_FOUND)
         except Exception as exc:
-            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            self._send_exception_response(exc)
 
     def do_GET(self) -> None:
         route = self.route_name()
+        try:
+            self._dispatch_get(route)
+        except Exception as exc:
+            self._send_exception_response(exc)
+
+    def _send_exception_response(self, exc: Exception) -> None:
+        status = HTTPStatus.BAD_REQUEST if isinstance(exc, ValueError) else HTTPStatus.INTERNAL_SERVER_ERROR
+        self.send_json({"error": str(exc)}, status)
+
+    def _dispatch_get(self, route: str) -> None:
         if route == "attachment":
             self.handle_attachment_download()
             return
@@ -316,7 +327,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", str(attachment["mimeType"]))
         self.send_header("Content-Length", str(len(content)))
-        self.send_header("Content-Disposition", f'attachment; filename="{attachment["filename"]}"')
+        self.set_attachment_header(attachment["filename"])
         self.end_headers()
         self.wfile.write(content)
 
@@ -326,7 +337,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
         self.send_header("Content-Length", str(len(result)))
-        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_attachment_header(filename)
         self.end_headers()
         self.wfile.write(result)
 
@@ -353,7 +364,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/pdf")
         self.send_header("Content-Length", str(len(result)))
-        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_attachment_header(filename)
         self.end_headers()
         self.wfile.write(result)
 
@@ -363,7 +374,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         self.send_header("Content-Length", str(len(result)))
-        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_attachment_header(filename)
         self.end_headers()
         self.wfile.write(result)
 
@@ -378,7 +389,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         self.send_header("Content-Length", str(len(result)))
-        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_attachment_header(filename)
         self.end_headers()
         self.wfile.write(result)
 
@@ -393,7 +404,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/pdf")
         self.send_header("Content-Length", str(len(result)))
-        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_attachment_header(filename)
         self.end_headers()
         self.wfile.write(result)
 
@@ -484,7 +495,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/pdf")
         self.send_header("Content-Length", str(len(result)))
-        self.send_header("Content-Disposition", f'attachment; filename="{download_name}"')
+        self.set_attachment_header(download_name)
         self.end_headers()
         self.wfile.write(result)
 
@@ -594,7 +605,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", str(attachment["mimeType"]))
         self.send_header("Content-Length", str(len(content)))
-        self.send_header("Content-Disposition", f'attachment; filename="{attachment["filename"]}"')
+        self.set_attachment_header(attachment["filename"])
         self.end_headers()
         self.wfile.write(content)
 
@@ -620,6 +631,10 @@ class handler(BaseHTTPRequestHandler):
             bytes(attachment.get("content") or b""),
         )
         self.send_json({"fieldKey": field_key, "attachment": result})
+
+    def set_attachment_header(self, filename: str) -> None:
+        safe_name = re.sub(r'[\r\n"]', "_", str(filename))
+        self.send_header("Content-Disposition", f'attachment; filename="{safe_name}"')
 
     def send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload).encode("utf-8")

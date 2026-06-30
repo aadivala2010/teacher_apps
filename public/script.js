@@ -25,6 +25,11 @@ var gridImageInput = document.querySelector("#gridImageInput");
 var gridImageFilesInput = document.querySelector("#gridImageFilesInput");
 var gridGenerateButton = document.querySelector("#gridGenerateButton");
 var gridStatus = document.querySelector("#gridStatus");
+
+if (gridImageInput && /iPad|iPhone|iPod/.test(navigator.userAgent || "")) {
+  gridImageInput.removeAttribute("webkitdirectory");
+  gridImageInput.removeAttribute("directory");
+}
 var appTabButtons = document.querySelectorAll("[data-app-tab]");
 var appViews = document.querySelectorAll("[data-app-view]");
 var apiRoutes = {
@@ -194,7 +199,13 @@ var centerConfig = [
 
 function appNameFromHash() {
   var hash = (window.location.hash || "").replace("#", "").toLowerCase();
-  return hash === "grid" ? "grid" : "planner";
+  var i;
+  for (i = 0; i < appViews.length; i += 1) {
+    if (appViews[i].getAttribute("data-app-view") === hash) {
+      return hash;
+    }
+  }
+  return "planner";
 }
 
 function showApp(appName, updateHash) {
@@ -1750,70 +1761,6 @@ async function handleApplyCurrentTemplate() {
   } finally {
     applyCurrentTemplateButton.disabled = false;
   }
-}
-
-function initializePlanner() {
-  initializeAppTabs();
-  checkAuth();
-  renderYearOptions();
-  currentYearLabel.textContent = String(selectedYear());
-  renderMonthOptions();
-  renderWeekOptions();
-  renderWeekDays();
-  renderSectionGrids();
-  document.addEventListener("change", handleAttachmentInputChange);
-  document.addEventListener("click", handleAttachmentRemoveClick);
-  if (gridGenerateButton) {
-    gridGenerateButton.addEventListener("click", handleGridGenerate);
-  }
-
-  if (authButton) {
-    authButton.addEventListener("click", openAuthModal);
-  }
-  if (closeAuthModalButton) {
-    closeAuthModalButton.addEventListener("click", closeAuthModal);
-  }
-  if (authSignInButton) {
-    authSignInButton.addEventListener("click", handleAuthSignIn);
-  }
-  if (authSignUpButton) {
-    authSignUpButton.addEventListener("click", handleAuthSignUp);
-  }
-  if (authSignOutButton) {
-    authSignOutButton.addEventListener("click", handleAuthSignOut);
-  }
-  if (authModal) {
-    authModal.addEventListener("click", function (event) {
-      if (event.target === authModal) {
-        closeAuthModal();
-      }
-    });
-  }
-
-  yearSelect.addEventListener("change", function () {
-    renderWeekOptions();
-    handleSelectedWeekChanged();
-  });
-
-  monthSelect.addEventListener("change", function () {
-    renderWeekOptions();
-    handleSelectedWeekChanged();
-  });
-
-  weekSelect.addEventListener("change", handleSelectedWeekChanged);
-  savePlanButton.addEventListener("click", handleSavePlan);
-  loadPlanButton.addEventListener("click", handleLoadPlan);
-  applyCurrentTemplateButton.addEventListener("click", handleApplyCurrentTemplate);
-  downloadDatabaseButton.addEventListener("click", handleDownloadDatabase);
-  closeDatabaseModalButton.addEventListener("click", closeDatabaseModal);
-  cancelDatabaseDownloadButton.addEventListener("click", closeDatabaseModal);
-  confirmDatabaseDownloadButton.addEventListener("click", handleConfirmDatabaseDownload);
-  databaseModal.addEventListener("click", function (event) {
-    if (event.target === databaseModal) {
-      closeDatabaseModal();
-    }
-  });
-  handleSelectedWeekChanged();
 }
 
 var activityDateInput = document.querySelector("#activityDate");
