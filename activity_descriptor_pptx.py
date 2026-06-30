@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import math
+from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
 
+from lxml import etree
 from pptx import Presentation
+from pptx.oxml.ns import qn
 from pptx.util import Pt
 
 
@@ -40,6 +43,28 @@ def _fit_font_size_pt(shape, lines: list[str], original_pt: float) -> float:
     return MIN_AUTOFIT_FONT_PT
 
 
+_BULLET_TAGS = (
+    "a:buClrTx", "a:buClr", "a:buSzTx", "a:buSzPct", "a:buSzPts",
+    "a:buFontTx", "a:buFont", "a:buNone", "a:buAutoNum", "a:buChar", "a:buBlip",
+)
+
+
+def _remove_bullet(p_elem) -> None:
+    """Strip bullet formatting and hanging indent so generated lines render as plain, flush-left text."""
+    pPr = p_elem.get_or_add_pPr()
+    for tag in _BULLET_TAGS:
+        for el in pPr.findall(qn(tag)):
+            pPr.remove(el)
+    pPr.set("marL", "0")
+    pPr.set("indent", "0")
+    insert_index = len(pPr)
+    for i, child in enumerate(pPr):
+        if child.tag in (qn("a:tabLst"), qn("a:defRPr"), qn("a:extLst")):
+            insert_index = i
+            break
+    pPr.insert(insert_index, pPr.makeelement(qn("a:buNone"), {}))
+
+
 def _set_text_box(shape, text: str) -> None:
     """Replace text in a shape's text frame, preserving first-run formatting."""
     tf = shape.text_frame
@@ -72,13 +97,11 @@ def _set_text_box(shape, text: str) -> None:
             original_pt = first_run.font.size.pt
     run0.font.size = Pt(_fit_font_size_pt(shape, lines, original_pt))
 
-    # Add subsequent lines as new paragraphs
-    from pptx.oxml.ns import qn
-    from lxml import etree
-    from copy import deepcopy
-
     first_p_elem = first_para._p
+    _remove_bullet(first_p_elem)
     parent = first_p_elem.getparent()
+
+    # Add subsequent lines as new paragraphs
 
     for line in lines[1:]:
         new_p = deepcopy(first_p_elem)
