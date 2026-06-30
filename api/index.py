@@ -224,10 +224,15 @@ class handler(BaseHTTPRequestHandler):
             raise ValueError("Request body is missing or too large.")
         return json.loads(self.rfile.read(content_length).decode("utf-8-sig"))
 
-    def parse_multipart_body(self, max_bytes: int = 25 * 1024 * 1024) -> tuple[dict[str, str], dict[str, dict[str, object]]]:
+    def parse_multipart_body(self, max_bytes: int = VERCEL_BODY_LIMIT_BYTES) -> tuple[dict[str, str], dict[str, dict[str, object]]]:
         content_length = int(self.headers.get("Content-Length", "0"))
-        if content_length <= 0 or content_length > max_bytes:
-            raise ValueError("Upload is missing or too large.")
+        if content_length <= 0:
+            raise ValueError("Upload is missing.")
+        if content_length > max_bytes:
+            raise ValueError(
+                "This hosted version can only accept uploads up to about 4.5 MB total on Vercel. "
+                "Select fewer or smaller files."
+            )
 
         content_type = self.headers.get("Content-Type", "")
         if "multipart/form-data" not in content_type:
@@ -500,7 +505,7 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(result)
 
     def handle_grid_pdf(self) -> None:
-        _, files = self.parse_multipart_body(max_bytes=25 * 1024 * 1024)
+        _, files = self.parse_multipart_body()
         image_files = [value for key, value in files.items() if key.startswith("images")]
         result = grid_pdf.build_grid_pdf(image_files)
         self.send_response(HTTPStatus.OK)

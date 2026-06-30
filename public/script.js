@@ -1499,6 +1499,20 @@ async function handleDownloadDatabase() {
   }
 }
 
+async function gridErrorMessageFromResponse(response) {
+  var text;
+  try {
+    text = await response.text();
+  } catch (readError) {
+    return "Server error (" + response.status + ").";
+  }
+  try {
+    return JSON.parse(text).error || "Could not generate the 2x2 PDF.";
+  } catch (parseError) {
+    return "Server error (" + response.status + "): " + text.slice(0, 200);
+  }
+}
+
 async function handleGridGenerate() {
   var folderFiles = Array.prototype.slice.call((gridImageInput && gridImageInput.files) || []);
   var individualFiles = Array.prototype.slice.call((gridImageFilesInput && gridImageFilesInput.files) || []);
@@ -1510,12 +1524,24 @@ async function handleGridGenerate() {
   });
   var formData;
   var response;
-  var errorData;
   var blob;
   var i;
+  var totalBytes;
 
   if (!imageFiles.length) {
     setGridStatus("Select a folder with supported image files first.", "error");
+    return;
+  }
+
+  totalBytes = imageFiles.reduce(function (sum, file) {
+    return sum + (file.size || 0);
+  }, 0);
+  if (totalBytes > maxServerSaveUploadBytes) {
+    setGridStatus(
+      "That's " + Math.ceil(totalBytes / (1024 * 1024)) + " MB of images. " +
+      "This hosted version can only accept uploads up to about 4 MB total. Select fewer or smaller images.",
+      "error"
+    );
     return;
   }
 
@@ -1531,8 +1557,7 @@ async function handleGridGenerate() {
       body: formData,
     });
     if (!response.ok) {
-      errorData = await response.json();
-      throw new Error(errorData.error || "Could not generate the 2x2 PDF.");
+      throw new Error(await gridErrorMessageFromResponse(response));
     }
     blob = await response.blob();
     downloadBlob(blob, "2x2.pdf");
