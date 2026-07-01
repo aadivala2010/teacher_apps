@@ -1517,9 +1517,9 @@ function suggestedFilenameFromHeaders(response) {
   return "lesson-plan.pdf";
 }
 
-function downloadBlob(blob, filename) {
+function downloadBlob(blob, filename, forceAnchor) {
   var url = URL.createObjectURL(blob);
-  var isAppleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent || "");
+  var isAppleMobile = !forceAnchor && /iPad|iPhone|iPod/.test(navigator.userAgent || "");
   var link;
   if (isAppleMobile) {
     window.location.href = url;
@@ -1573,6 +1573,8 @@ async function gridErrorMessageFromResponse(response) {
   }
 }
 
+var GRID_IMAGES_PER_PAGE = 4;
+
 async function handleGridGenerate() {
   var folderFiles = Array.prototype.slice.call((gridImageInput && gridImageInput.files) || []);
   var individualFiles = Array.prototype.slice.call((gridImageFilesInput && gridImageFilesInput.files) || []);
@@ -1582,11 +1584,11 @@ async function handleGridGenerate() {
     var bName = b.webkitRelativePath || b.name || "";
     return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: "base" });
   });
+  var batches = [];
   var formData;
   var response;
   var blob;
   var i;
-  var totalBytes;
 
   if (!imageFiles.length) {
     setGridStatus("Select a folder with supported image files first.", "error");
@@ -1594,23 +1596,43 @@ async function handleGridGenerate() {
   }
 
   gridGenerateButton.disabled = true;
-  setGridStatus("Creating 2x2.pdf...");
   try {
-    formData = new FormData();
+    setGridStatus("Compressing images...");
     for (i = 0; i < imageFiles.length; i += 1) {
       imageFiles[i] = await compressImageIfNeeded(imageFiles[i]);
-      formData.append("images::" + i, imageFiles[i], imageFiles[i].webkitRelativePath || imageFiles[i].name);
     }
-    response = await fetch(apiRoutes.gridPdf, {
-      method: "POST",
-      body: formData,
-    });
-    if (!response.ok) {
-      throw new Error(await gridErrorMessageFromResponse(response));
+    for (i = 0; i < imageFiles.length; i += GRID_IMAGES_PER_PAGE) {
+      batches.push(imageFiles.slice(i, i + GRID_IMAGES_PER_PAGE));
     }
-    blob = await response.blob();
-    downloadBlob(blob, "2x2.pdf");
-    setGridStatus("2x2.pdf was created with " + imageFiles.length + " image" + (imageFiles.length === 1 ? "." : "s."), "success");
+    for (i = 0; i < batches.length; i += 1) {
+      setGridStatus(
+        batches.length > 1
+          ? "Creating page " + (i + 1) + " of " + batches.length + "..."
+          : "Creating 2x2.pdf..."
+      );
+      formData = new FormData();
+      batches[i].forEach(function (file, index) {
+        formData.append("images::" + index, file, file.webkitRelativePath || file.name);
+      });
+      response = await fetch(apiRoutes.gridPdf, {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        throw new Error(await gridErrorMessageFromResponse(response));
+      }
+      blob = await response.blob();
+      downloadBlob(
+        blob,
+        batches.length > 1 ? "2x2-page-" + (i + 1) + ".pdf" : "2x2.pdf",
+        batches.length > 1
+      );
+    }
+    setGridStatus(
+      (batches.length > 1 ? batches.length + " PDF pages were" : "2x2.pdf was") +
+        " created with " + imageFiles.length + " image" + (imageFiles.length === 1 ? "." : "s."),
+      "success"
+    );
   } catch (error) {
     setGridStatus(error.message || "Could not generate the 2x2 PDF.", "error");
   } finally {
