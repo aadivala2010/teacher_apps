@@ -10,6 +10,43 @@ PAGE_SIZE = (2550, 3300)
 MARGIN = 120
 GAP = 80
 BACKGROUND = "white"
+MAX_UPLOAD_BYTES = 1_048_576
+MAX_DIMENSION = 1920
+
+
+def compress_image_bytes(content: bytes, max_bytes: int = MAX_UPLOAD_BYTES) -> bytes:
+    try:
+        with Image.open(BytesIO(content)) as img:
+            if img.format and img.format.upper() in ("GIF", "SVG"):
+                return content
+            if len(content) <= max_bytes:
+                return content
+            image = _first_frame(img)
+            image = ImageOps.exif_transpose(image)
+            if image.mode not in {"RGB", "L"}:
+                image = image.convert("RGBA")
+                background = Image.new("RGBA", image.size, BACKGROUND)
+                background.alpha_composite(image)
+                image = background.convert("RGB")
+            else:
+                image = image.convert("RGB")
+            w, h = image.size
+            if w > MAX_DIMENSION or h > MAX_DIMENSION:
+                scale = min(MAX_DIMENSION / w, MAX_DIMENSION / h)
+                w, h = int(w * scale), int(h * scale)
+                image = image.resize((w, h), Image.Resampling.LANCZOS)
+            quality = 85
+            output = BytesIO()
+            while quality > 10:
+                output.seek(0)
+                output.truncate(0)
+                image.save(output, format="JPEG", quality=quality)
+                if output.tell() <= max_bytes:
+                    break
+                quality -= 10
+            return output.getvalue()
+    except Exception:
+        return content
 
 
 def is_supported_image(filename: str) -> bool:

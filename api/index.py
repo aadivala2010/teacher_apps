@@ -289,10 +289,14 @@ class handler(BaseHTTPRequestHandler):
         attachment = next(iter(files.values()), None)
         if not field_key or not attachment:
             raise ValueError("Attachment upload is missing.")
+        mime = str(attachment.get("mimeType") or "application/octet-stream")
+        content = bytes(attachment.get("content") or b"")
+        if mime.startswith("image/") and mime not in ("image/gif", "image/svg+xml"):
+            content = grid_pdf.compress_image_bytes(content)
         result = blob_storage.upload_attachment(
             str(attachment.get("filename") or "attachment"),
-            str(attachment.get("mimeType") or "application/octet-stream"),
-            bytes(attachment.get("content") or b""),
+            mime,
+            content,
         )
         self.send_json({"fieldKey": field_key, "attachment": result})
 
@@ -507,6 +511,8 @@ class handler(BaseHTTPRequestHandler):
     def handle_grid_pdf(self) -> None:
         _, files = self.parse_multipart_body()
         image_files = [value for key, value in files.items() if key.startswith("images")]
+        for f in image_files:
+            f["content"] = grid_pdf.compress_image_bytes(f.get("content") or b"")
         result = grid_pdf.build_grid_pdf(image_files)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/pdf")

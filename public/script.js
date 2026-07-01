@@ -297,6 +297,50 @@ function isSupportedGridImage(file) {
   return false;
 }
 
+function isImageType(mimeType) {
+  return mimeType && mimeType.startsWith("image/") && mimeType !== "image/gif" && !mimeType.includes("svg");
+}
+
+async function compressImageIfNeeded(file, maxBytes) {
+  maxBytes = maxBytes || 1048576;
+  if (!isImageType(file.type) || file.size <= maxBytes) {
+    return file;
+  }
+  return new Promise(function (resolve, reject) {
+    var img = new Image();
+    img.onload = function () {
+      URL.revokeObjectURL(img.src);
+      var canvas = document.createElement("canvas");
+      var ctx = canvas.getContext("2d");
+      var MAX_DIM = 1920;
+      var w = img.width;
+      var h = img.height;
+      if (w > MAX_DIM || h > MAX_DIM) {
+        var scale = Math.min(MAX_DIM / w, MAX_DIM / h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(img, 0, 0, w, h);
+      function tryQuality(quality) {
+        canvas.toBlob(function (blob) {
+          if (!blob) { resolve(file); return; }
+          if (blob.size <= maxBytes || quality <= 0.05) {
+            var name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+            resolve(new File([blob], name, { type: "image/jpeg" }));
+          } else {
+            tryQuality(Math.max(quality - 0.1, 0.05));
+          }
+        }, "image/jpeg", quality);
+      }
+      tryQuality(0.85);
+    };
+    img.onerror = function () { resolve(file); };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 function authHeaders() {
   return authToken ? { "Authorization": "Bearer " + authToken } : {};
 }
@@ -455,6 +499,9 @@ async function uploadAttachmentToCloud(fieldKey, attachment, planLookup) {
   if (!blob) {
     return attachment;
   }
+  var file = new File([blob], attachment.filename || "attachment", { type: attachment.mimeType || blob.type || "application/octet-stream" });
+  file = await compressImageIfNeeded(file);
+  blob = file;
   var formData = new FormData();
   formData.append("fieldKey", fieldKey);
   formData.append("planLookup", JSON.stringify(planLookup));
@@ -1112,6 +1159,9 @@ async function uploadStoredAttachment(fieldKey, attachment) {
     return attachment;
   }
   blob = await dataUrlToBlob(attachment.dataUrl);
+  var file = new File([blob], attachment.filename || "attachment", { type: attachment.mimeType || blob.type || "application/octet-stream" });
+  file = await compressImageIfNeeded(file);
+  blob = file;
   if (blob.size > maxServerSaveUploadBytes) {
     return {
       filename: attachment.filename || "attachment",
@@ -1189,7 +1239,7 @@ async function collectAttachmentsForStorage() {
   for (i = 0; i < attachmentInputs.length; i += 1) {
     input = attachmentInputs[i];
     if (input.files && input.files[0]) {
-      file = input.files[0];
+      file = await compressImageIfNeeded(input.files[0]);
       dataUrl = await readFileAsDataUrl(file);
       attachments[input.dataset.field] = {
         filename: file.name,
@@ -1237,7 +1287,7 @@ async function collectAttachmentsForPayload() {
   for (i = 0; i < attachmentInputs.length; i += 1) {
     input = attachmentInputs[i];
     if (input.files && input.files[0]) {
-      file = input.files[0];
+      file = await compressImageIfNeeded(input.files[0]);
       attachments[input.dataset.field] = {
         filename: file.name,
         mimeType: file.type || "application/octet-stream",
@@ -1256,15 +1306,17 @@ async function plannerPayloadWithAttachments() {
   return payload;
 }
 
-function appendAttachmentFiles(formData) {
+async function appendAttachmentFiles(formData) {
   var attachmentInputs = document.querySelectorAll('[data-kind="attachment"]');
   var i;
   var input;
+  var file;
 
   for (i = 0; i < attachmentInputs.length; i += 1) {
     input = attachmentInputs[i];
     if (input.files && input.files[0]) {
-      formData.append("attachment::" + input.dataset.field, input.files[0]);
+      file = await compressImageIfNeeded(input.files[0]);
+      formData.append("attachment::" + input.dataset.field, file);
     }
   }
 }
@@ -1287,7 +1339,7 @@ function selectedAttachmentByteTotal() {
 async function postMultipart(url, payload) {
   var formData = new FormData();
   formData.append("payload", JSON.stringify(payload));
-  appendAttachmentFiles(formData);
+  await appendAttachmentFiles(formData);
   return fetch(url, {
     method: "POST",
     body: formData,
@@ -1541,23 +1593,12 @@ async function handleGridGenerate() {
     return;
   }
 
-  totalBytes = imageFiles.reduce(function (sum, file) {
-    return sum + (file.size || 0);
-  }, 0);
-  if (totalBytes > maxServerSaveUploadBytes) {
-    setGridStatus(
-      "That's " + Math.ceil(totalBytes / (1024 * 1024)) + " MB of images. " +
-      "This hosted version can only accept uploads up to about 4 MB total. Select fewer or smaller images.",
-      "error"
-    );
-    return;
-  }
-
   gridGenerateButton.disabled = true;
   setGridStatus("Creating 2x2.pdf...");
   try {
     formData = new FormData();
     for (i = 0; i < imageFiles.length; i += 1) {
+      imageFiles[i] = await compressImageIfNeeded(imageFiles[i]);
       formData.append("images::" + i, imageFiles[i], imageFiles[i].webkitRelativePath || imageFiles[i].name);
     }
     response = await fetch(apiRoutes.gridPdf, {

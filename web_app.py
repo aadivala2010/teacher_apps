@@ -562,6 +562,8 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
     def handle_grid_pdf(self) -> None:
         _, files = self.parse_multipart_body(max_bytes=MAX_UPLOAD_BYTES)
         image_files = [value for key, value in files.items() if key.startswith("images")]
+        for f in image_files:
+            f["content"] = grid_pdf.compress_image_bytes(f.get("content") or b"")
         result = grid_pdf.build_grid_pdf(image_files)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/pdf")
