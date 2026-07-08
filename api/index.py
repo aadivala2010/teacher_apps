@@ -84,6 +84,9 @@ class handler(BaseHTTPRequestHandler):
             if route == "auth-login":
                 self.handle_auth_login()
                 return
+            if route == "auth-refresh":
+                self.handle_auth_refresh()
+                return
             if route == "auth-me":
                 self.handle_auth_me()
                 return
@@ -202,6 +205,8 @@ class handler(BaseHTTPRequestHandler):
             return "auth-signup"
         if path.endswith("/auth-login"):
             return "auth-login"
+        if path.endswith("/auth-refresh"):
+            return "auth-refresh"
         if path.endswith("/auth-me"):
             return "auth-me"
         if path.endswith("/sync-save"):
@@ -547,6 +552,14 @@ class handler(BaseHTTPRequestHandler):
             raise ValueError("Email and password are required.")
         print(f"[auth-login] Attempting login for {email}", flush=True)
         result = supabase_sync.sign_in(email, password)
+        self.send_json(result)
+
+    def handle_auth_refresh(self) -> None:
+        data = self.read_json_body()
+        refresh_token = str(data.get("refresh_token", "")).strip()
+        if not refresh_token:
+            raise ValueError("Missing refresh token.")
+        result = supabase_sync.refresh_session(refresh_token)
         self.send_json(result)
 
     def handle_auth_me(self) -> None:

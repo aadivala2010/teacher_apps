@@ -71,6 +71,10 @@
       "destination": "/api/index?route=auth-login"
     },
     {
+      "source": "/api/auth-refresh",
+      "destination": "/api/index?route=auth-refresh"
+    },
+    {
       "source": "/api/auth-me",
       "destination": "/api/index?route=auth-me"
     },

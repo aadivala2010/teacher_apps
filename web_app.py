@@ -157,6 +157,12 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
+        if route == "auth-refresh":
+            try:
+                self.handle_auth_refresh()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
         if route == "auth-me":
             try:
                 self.handle_auth_me()
@@ -280,6 +286,8 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             return "auth-signup"
         if path.endswith("/auth-login"):
             return "auth-login"
+        if path.endswith("/auth-refresh"):
+            return "auth-refresh"
         if path.endswith("/auth-me"):
             return "auth-me"
         if path.endswith("/sync-save"):
@@ -615,6 +623,14 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             raise ValueError("Email and password are required.")
         print(f"[auth-login] Attempting login for {email}", flush=True)
         result = supabase_sync.sign_in(email, password)
+        self.send_json(result)
+
+    def handle_auth_refresh(self) -> None:
+        data = self._read_body_json()
+        refresh_token = str(data.get("refresh_token", "")).strip()
+        if not refresh_token:
+            raise ValueError("Missing refresh token.")
+        result = supabase_sync.refresh_session(refresh_token)
         self.send_json(result)
 
     def handle_auth_me(self) -> None:

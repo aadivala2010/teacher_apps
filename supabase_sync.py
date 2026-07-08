@@ -81,6 +81,7 @@ def _bucket() -> Any:
 
 def sign_up(email: str, password: str) -> dict[str, Any]:
     admin = _admin()
+    create_error: Exception | None = None
     try:
         result = admin.auth.admin.create_user({
             "email": email,
@@ -89,20 +90,47 @@ def sign_up(email: str, password: str) -> dict[str, Any]:
         })
         if result and result.user:
             return sign_in(email, password)
-    except Exception:
-        pass
+    except Exception as exc:
+        create_error = exc
 
+    # The account may already exist. If it does but was never email-confirmed,
+    # confirm it so the teacher can sign in. Otherwise, give a clear message
+    # instead of a confusing "invalid credentials" error.
+    account_exists = False
     try:
         users = admin.auth.admin.list_users()
         for u in users:
             if hasattr(u, "email") and u.email == email:
+                account_exists = True
                 if not u.email_confirmed_at:
                     admin.auth.admin.update_user_by_id(u.id, {"email_confirm": True})
                 break
     except Exception:
         pass
 
+    if account_exists or _is_already_registered_error(create_error):
+        try:
+            return sign_in(email, password)
+        except Exception:
+            raise ValueError(
+                "An account with this email already exists. Please use Sign In "
+                "with your existing password."
+            )
+
+    if create_error is not None:
+        raise ValueError("Could not create the account. Please try again.")
+
     return sign_in(email, password)
+
+
+def _is_already_registered_error(error: Exception | None) -> bool:
+    if error is None:
+        return False
+    message = str(error).lower()
+    return any(
+        phrase in message
+        for phrase in ("already registered", "already exists", "already been registered", "email_exists")
+    )
 
 
 def sign_in(email: str, password: str) -> dict[str, Any]:
@@ -113,6 +141,18 @@ def sign_in(email: str, password: str) -> dict[str, Any]:
     except Exception as exc:
         print(f"[supabase_sync] sign_in error for {email}: {exc}", flush=True)
         raise
+
+
+def refresh_session(refresh_token: str) -> dict[str, Any]:
+    if not refresh_token:
+        raise ValueError("Missing refresh token.")
+    client = _client()
+    try:
+        result = client.auth.refresh_session(refresh_token)
+        return _auth_result(result)
+    except Exception as exc:
+        print(f"[supabase_sync] refresh_session error: {exc}", flush=True)
+        raise ValueError("Your session has expired. Please sign in again.")
 
 
 def _auth_result(result: Any) -> dict[str, Any]:
@@ -335,6 +375,7 @@ def save_activity(access_token: str, payload: dict[str, Any]) -> dict[str, Any]:
         "date": payload.get("date", ""),
         "activities": payload.get("activities") or [],
         "skills": payload.get("skills") or [],
+        "links": payload.get("links") or [],
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
 

@@ -42,6 +42,7 @@ var apiRoutes = {
   plannerExportDatabaseDocx: "/api/planner-export-database-docx",
   authSignup: "/api/auth-signup",
   authLogin: "/api/auth-login",
+  authRefresh: "/api/auth-refresh",
   authMe: "/api/auth-me",
   syncSave: "/api/sync-save",
   syncLoad: "/api/sync-load",
@@ -58,8 +59,11 @@ var removedAttachmentFields = {};
 var weekLoadSerial = 0;
 
 var authToken = localStorage.getItem("authToken") || "";
+var authRefreshToken = localStorage.getItem("authRefreshToken") || "";
+var authExpiresAt = Number(localStorage.getItem("authExpiresAt") || "0");
 var authUser = null;
 var isSyncing = false;
+var refreshInFlight = null;
 
 var assessmentOptions = [
   "Checklist",
@@ -345,6 +349,63 @@ function authHeaders() {
   return authToken ? { "Authorization": "Bearer " + authToken } : {};
 }
 
+function storeSession(session) {
+  if (!session || !session.access_token) {
+    return;
+  }
+  authToken = session.access_token;
+  authRefreshToken = session.refresh_token || authRefreshToken;
+  authExpiresAt = Number(session.expires_at || 0);
+  localStorage.setItem("authToken", authToken);
+  if (authRefreshToken) {
+    localStorage.setItem("authRefreshToken", authRefreshToken);
+  }
+  localStorage.setItem("authExpiresAt", String(authExpiresAt));
+}
+
+// Refresh the access token when it is expired or within two minutes of
+// expiring, so signed-in teachers keep syncing without being logged out.
+async function ensureFreshToken() {
+  if (!authToken || !authRefreshToken) {
+    return authToken;
+  }
+  var nowSeconds = Math.floor(Date.now() / 1000);
+  if (authExpiresAt && authExpiresAt - nowSeconds > 120) {
+    return authToken;
+  }
+  if (refreshInFlight) {
+    return refreshInFlight;
+  }
+  refreshInFlight = (async function () {
+    try {
+      var response = await fetch(apiRoutes.authRefresh, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: authRefreshToken }),
+      });
+      var data = await response.json();
+      if (response.ok && data.session && data.session.access_token) {
+        storeSession(data.session);
+        if (data.user) {
+          authUser = data.user;
+        }
+        return authToken;
+      }
+    } catch (e) {
+      // Network error - keep the existing token and try again later.
+      refreshInFlight = null;
+      return authToken;
+    }
+    // Refresh was rejected: the session is truly gone.
+    setAuthState(null);
+    refreshInFlight = null;
+    return "";
+  })();
+  var result = await refreshInFlight;
+  refreshInFlight = null;
+  return result;
+}
+
 function setAuthState(user) {
   authUser = user;
   if (user) {
@@ -353,7 +414,11 @@ function setAuthState(user) {
     authUserEmail.textContent = user.email;
   } else {
     authToken = "";
+    authRefreshToken = "";
+    authExpiresAt = 0;
     localStorage.removeItem("authToken");
+    localStorage.removeItem("authRefreshToken");
+    localStorage.removeItem("authExpiresAt");
     authUser = null;
     authButton.hidden = false;
     authUserInfo.hidden = true;
@@ -366,16 +431,30 @@ async function checkAuth() {
     setAuthState(null);
     return;
   }
+  await ensureFreshToken();
+  if (!authToken) {
+    return;
+  }
   try {
     var response = await fetch(apiRoutes.authMe, { headers: authHeaders() });
     var data = await response.json();
     if (data && data.user) {
       setAuthState(data.user);
     } else {
+      // Token was rejected - attempt one refresh before giving up.
+      var refreshed = await ensureFreshToken();
+      if (refreshed) {
+        var retry = await fetch(apiRoutes.authMe, { headers: authHeaders() });
+        var retryData = await retry.json();
+        if (retryData && retryData.user) {
+          setAuthState(retryData.user);
+          return;
+        }
+      }
       setAuthState(null);
     }
   } catch (e) {
-    setAuthState(null);
+    // Network hiccup - keep the session so offline/flaky use still works.
   }
 }
 
@@ -413,8 +492,7 @@ async function handleAuthSignIn() {
     if (!response.ok) {
       throw new Error(data.error || "Sign in failed.");
     }
-    authToken = data.session.access_token;
-    localStorage.setItem("authToken", authToken);
+    storeSession(data.session);
     setAuthState(data.user);
     closeAuthModal();
     setPlannerStatus("Signed in as " + data.user.email + ". Syncing data...");
@@ -454,8 +532,7 @@ async function handleAuthSignUp() {
     if (!response.ok) {
       throw new Error(data.error || "Could not create account.");
     }
-    authToken = data.session.access_token;
-    localStorage.setItem("authToken", authToken);
+    storeSession(data.session);
     setAuthState(data.user);
     closeAuthModal();
     setPlannerStatus("Account created and signed in as " + data.user.email);
@@ -525,6 +602,7 @@ async function uploadAttachmentToCloud(fieldKey, attachment, planLookup) {
 }
 
 async function syncPlanToCloud(record) {
+  await ensureFreshToken();
   if (!authToken || !authUser) {
     return null;
   }
@@ -565,6 +643,7 @@ async function syncPlanToCloud(record) {
 }
 
 async function loadPlanFromCloud(year, month, weekNumber) {
+  await ensureFreshToken();
   if (!authToken || !authUser) {
     return null;
   }
@@ -1517,26 +1596,21 @@ function suggestedFilenameFromHeaders(response) {
   return "lesson-plan.pdf";
 }
 
-function downloadBlob(blob, filename, forceAnchor) {
+function downloadBlob(blob, filename) {
+  // Use an anchor with the download attribute on every platform. This keeps the
+  // teacher on the app instead of replacing the page with the file (the old
+  // iPad/iPhone behavior). iOS Safari has supported a[download] since 16.4.
   var url = URL.createObjectURL(blob);
-  var isAppleMobile = !forceAnchor && /iPad|iPhone|iPod/.test(navigator.userAgent || "");
-  var link;
-  if (isAppleMobile) {
-    window.location.href = url;
-    setTimeout(function () {
-      URL.revokeObjectURL(url);
-    }, 2000);
-    return;
-  }
-  link = document.createElement("a");
+  var link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  link.rel = "noopener";
   document.body.appendChild(link);
   link.click();
   setTimeout(function () {
     URL.revokeObjectURL(url);
     document.body.removeChild(link);
-  }, 1000);
+  }, 1500);
 }
 
 async function handleDownloadDatabase() {
@@ -1573,7 +1647,32 @@ async function gridErrorMessageFromResponse(response) {
   }
 }
 
-var GRID_IMAGES_PER_PAGE = 4;
+// Keep each upload comfortably under the hosted 4.5 MB request limit. The
+// server packs every image in a single request into one multi-page 2x2 PDF, so
+// batching by size (not a fixed count) means most folders come out as one file.
+var GRID_MAX_REQUEST_BYTES = 4000000;
+
+function batchGridFilesBySize(files) {
+  var batches = [];
+  var current = [];
+  var currentBytes = 0;
+  var i;
+  var size;
+  for (i = 0; i < files.length; i += 1) {
+    size = files[i].size || 0;
+    if (current.length && currentBytes + size > GRID_MAX_REQUEST_BYTES) {
+      batches.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(files[i]);
+    currentBytes += size;
+  }
+  if (current.length) {
+    batches.push(current);
+  }
+  return batches;
+}
 
 async function handleGridGenerate() {
   var folderFiles = Array.prototype.slice.call((gridImageInput && gridImageInput.files) || []);
@@ -1584,7 +1683,7 @@ async function handleGridGenerate() {
     var bName = b.webkitRelativePath || b.name || "";
     return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: "base" });
   });
-  var batches = [];
+  var batches;
   var formData;
   var response;
   var blob;
@@ -1601,13 +1700,11 @@ async function handleGridGenerate() {
     for (i = 0; i < imageFiles.length; i += 1) {
       imageFiles[i] = await compressImageIfNeeded(imageFiles[i]);
     }
-    for (i = 0; i < imageFiles.length; i += GRID_IMAGES_PER_PAGE) {
-      batches.push(imageFiles.slice(i, i + GRID_IMAGES_PER_PAGE));
-    }
+    batches = batchGridFilesBySize(imageFiles);
     for (i = 0; i < batches.length; i += 1) {
       setGridStatus(
         batches.length > 1
-          ? "Creating page " + (i + 1) + " of " + batches.length + "..."
+          ? "Creating PDF " + (i + 1) + " of " + batches.length + "..."
           : "Creating 2x2.pdf..."
       );
       formData = new FormData();
@@ -1622,15 +1719,13 @@ async function handleGridGenerate() {
         throw new Error(await gridErrorMessageFromResponse(response));
       }
       blob = await response.blob();
-      downloadBlob(
-        blob,
-        batches.length > 1 ? "2x2-page-" + (i + 1) + ".pdf" : "2x2.pdf",
-        batches.length > 1
-      );
+      downloadBlob(blob, batches.length > 1 ? "2x2-part-" + (i + 1) + ".pdf" : "2x2.pdf");
     }
     setGridStatus(
-      (batches.length > 1 ? batches.length + " PDF pages were" : "2x2.pdf was") +
-        " created with " + imageFiles.length + " image" + (imageFiles.length === 1 ? "." : "s."),
+      (batches.length > 1
+        ? batches.length + " PDF files were created (too many images for one file) with "
+        : "2x2.pdf was created with ") +
+        imageFiles.length + " image" + (imageFiles.length === 1 ? "." : "s."),
       "success"
     );
   } catch (error) {
@@ -1688,6 +1783,16 @@ async function handleConfirmDatabaseDownload() {
   }
 }
 
+function savedWeekMessage(cloudResult) {
+  if (authToken && authUser) {
+    if (cloudResult) {
+      return "Week saved on this device and synced to your account.";
+    }
+    return "Week saved on this device. Cloud sync didn't finish - check your internet connection, then save again.";
+  }
+  return "Week saved on this device. Sign in to also back it up to your account.";
+}
+
 async function handleSavePlan() {
   var payload;
   var attachments;
@@ -1695,6 +1800,7 @@ async function handleSavePlan() {
   var response;
   var data;
   var key;
+  var cloudResult;
   savePlanButton.disabled = true;
   setPlannerStatus("Saving this week...");
   try {
@@ -1718,8 +1824,8 @@ async function handleSavePlan() {
           }
           await savePlanToIndexedDb(data.plan);
           applyPlannerRecord(data.plan);
-          await syncPlanToCloud(data.plan);
-          setPlannerStatus("Week saved to the website backend. Attachments are ready for database links.", "success");
+          cloudResult = await syncPlanToCloud(data.plan);
+          setPlannerStatus(savedWeekMessage(cloudResult), "success");
           return;
         }
       } catch (serverError) {
@@ -1734,8 +1840,8 @@ async function handleSavePlan() {
     record.attachments = attachments;
     await savePlanToIndexedDb(record);
     applyPlannerRecord(record);
-    await syncPlanToCloud(record);
-    setPlannerStatus("Week saved on this device. Attachments will be uploaded when you download the Word database.", "success");
+    cloudResult = await syncPlanToCloud(record);
+    setPlannerStatus(savedWeekMessage(cloudResult), "success");
   } catch (error) {
     setPlannerStatus(error.message || "Could not save the planner.", "error");
   } finally {
@@ -2097,6 +2203,7 @@ async function handleLoadActivity() {
 }
 
 async function syncActivityToCloud(record) {
+  await ensureFreshToken();
   if (!authToken || !authUser) {
     return null;
   }
@@ -2117,6 +2224,7 @@ async function syncActivityToCloud(record) {
 }
 
 async function loadActivityFromCloud(date) {
+  await ensureFreshToken();
   if (!authToken || !authUser) {
     return null;
   }
