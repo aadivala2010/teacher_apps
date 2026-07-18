@@ -57,6 +57,54 @@ var currentAttachments = {};
 var maxServerSaveUploadBytes = 4 * 1024 * 1024;
 var removedAttachmentFields = {};
 var weekLoadSerial = 0;
+var plannerDirty = false;
+var activityDirty = false;
+var UNSAVED_CHANGES_MESSAGE =
+  "You have unsaved changes. They will be lost if you leave now.\n\nClick Cancel to go back and save, or OK to discard the changes.";
+
+function markPlannerDirty() {
+  if (!plannerDirty) {
+    plannerDirty = true;
+    setPlannerStatus("You have unsaved changes. Click \"Save Data\" before switching weeks or leaving this page.");
+  }
+}
+
+function markActivityDirty() {
+  if (!activityDirty) {
+    activityDirty = true;
+    setActivityStatus("You have unsaved changes. Click \"Save Data\" before switching dates or leaving this page.");
+  }
+}
+
+var previousYearValue;
+var previousMonthValue;
+var previousWeekValue;
+function syncPreviousWeekSelectors() {
+  previousYearValue = yearSelect.value;
+  previousMonthValue = monthSelect.value;
+  previousWeekValue = weekSelect.value;
+}
+
+// Ask before discarding unsaved edits (e.g. changing the week dropdown or the
+// activity date without saving first). Reverts the control via revertFn if the
+// teacher cancels.
+function confirmDiscardChanges(isDirty, revertFn) {
+  if (!isDirty) {
+    return true;
+  }
+  var proceed = window.confirm(UNSAVED_CHANGES_MESSAGE);
+  if (!proceed && revertFn) {
+    revertFn();
+  }
+  return proceed;
+}
+
+window.addEventListener("beforeunload", function (event) {
+  if (plannerDirty || activityDirty) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
 
 var authToken = localStorage.getItem("authToken") || "";
 var authRefreshToken = localStorage.getItem("authRefreshToken") || "";
@@ -535,7 +583,9 @@ async function handleAuthSignUp() {
     storeSession(data.session);
     setAuthState(data.user);
     closeAuthModal();
-    setPlannerStatus("Account created and signed in as " + data.user.email);
+    setPlannerStatus("Account created and signed in as " + data.user.email + ". Syncing data...");
+    syncAllLocalToCloud();
+    syncAllLocalActivitiesToCloud();
   } catch (error) {
     authStatus.textContent = error.message || "Could not create account.";
     authStatus.className = "status-text error";
@@ -1051,6 +1101,7 @@ function handleAttachmentRemoveClick(event) {
     return;
   }
   setAttachmentLink(button.dataset.field, null, true);
+  markPlannerDirty();
 }
 
 function setFieldValue(fieldKey, kind, value) {
@@ -1825,6 +1876,7 @@ async function handleSavePlan() {
           await savePlanToIndexedDb(data.plan);
           applyPlannerRecord(data.plan);
           cloudResult = await syncPlanToCloud(data.plan);
+          plannerDirty = false;
           setPlannerStatus(savedWeekMessage(cloudResult), "success");
           return;
         }
@@ -1841,6 +1893,7 @@ async function handleSavePlan() {
     await savePlanToIndexedDb(record);
     applyPlannerRecord(record);
     cloudResult = await syncPlanToCloud(record);
+    plannerDirty = false;
     setPlannerStatus(savedWeekMessage(cloudResult), "success");
   } catch (error) {
     setPlannerStatus(error.message || "Could not save the planner.", "error");
@@ -1850,10 +1903,19 @@ async function handleSavePlan() {
 }
 
 async function handleLoadPlan() {
+  if (!confirmDiscardChanges(plannerDirty)) {
+    return;
+  }
   loadPlanButton.disabled = true;
   setPlannerStatus("Loading the saved week...");
   try {
-    if (!(await loadSelectedWeekIntoForm())) {
+    var result = await loadSelectedWeekIntoForm();
+    if (result === "stale") {
+      return;
+    }
+    plannerDirty = false;
+    syncPreviousWeekSelectors();
+    if (!result) {
       setPlannerStatus("No saved week was found on this device for this month and week.");
       return;
     }
@@ -1873,7 +1935,15 @@ function selectedWeekLookup() {
   };
 }
 
+// Returns true (loaded a saved week), false (blank week), or "stale" when a
+// newer call to this function started before this one finished - the newer
+// call owns the form now, so this one must not overwrite it.
 async function loadSelectedWeekIntoForm() {
+  weekLoadSerial += 1;
+  var serial = weekLoadSerial;
+  function stillCurrent() {
+    return serial === weekLoadSerial;
+  }
   var lookup = selectedWeekLookup();
   var response;
   var serverData;
@@ -1885,6 +1955,9 @@ async function loadSelectedWeekIntoForm() {
   // Try cloud first if signed in
   if (authToken && authUser) {
     cloudData = await loadPlanFromCloud(lookup.year, lookup.month, lookup.weekNumber);
+    if (!stillCurrent()) {
+      return "stale";
+    }
     if (cloudData) {
       applyPlannerRecord(cloudData);
       await savePlanToIndexedDb(cloudData);
@@ -1896,6 +1969,9 @@ async function loadSelectedWeekIntoForm() {
   try {
     response = await postJson(apiRoutes.plannerLoad, lookup);
     serverData = await response.json();
+    if (!stillCurrent()) {
+      return "stale";
+    }
     if (response.ok && serverData.plan) {
       applyPlannerRecord(serverData.plan);
       await savePlanToIndexedDb(serverData.plan);
@@ -1907,6 +1983,9 @@ async function loadSelectedWeekIntoForm() {
 
   // Finally try local IndexedDB
   data = await loadPlanFromIndexedDb(lookup.year, lookup.month, lookup.weekNumber);
+  if (!stillCurrent()) {
+    return "stale";
+  }
   if (!data) {
     return false;
   }
@@ -1915,25 +1994,20 @@ async function loadSelectedWeekIntoForm() {
 }
 
 async function handleSelectedWeekChanged() {
-  var serial = weekLoadSerial + 1;
-  weekLoadSerial = serial;
   renderWeekDays();
-  resetPlannerForm();
   setPlannerStatus("Loading selected week...");
   try {
-    if (await loadSelectedWeekIntoForm()) {
-      if (serial === weekLoadSerial) {
-        setPlannerStatus("Saved week loaded.", "success");
-      }
+    var result = await loadSelectedWeekIntoForm();
+    if (result === "stale") {
       return;
     }
-    if (serial === weekLoadSerial) {
-      setPlannerStatus("New blank week ready.");
-    }
+    plannerDirty = false;
+    syncPreviousWeekSelectors();
+    setPlannerStatus(result ? "Saved week loaded." : "New blank week ready.", result ? "success" : "");
   } catch (error) {
-    if (serial === weekLoadSerial) {
-      setPlannerStatus(error.message || "Could not load this week.", "error");
-    }
+    plannerDirty = false;
+    syncPreviousWeekSelectors();
+    setPlannerStatus(error.message || "Could not load this week.", "error");
   }
 }
 
@@ -2134,6 +2208,7 @@ function removeFieldFromContainer(container, index, sectionLabel) {
     }
   }
   renderSectionFields(container, newItems, sectionLabel);
+  markActivityDirty();
 }
 
 function addFieldToSection(container, sectionLabel) {
@@ -2145,6 +2220,7 @@ function addFieldToSection(container, sectionLabel) {
   }
   items.push("");
   renderSectionFields(container, items, sectionLabel);
+  markActivityDirty();
 }
 
 function resetActivityForm() {
@@ -2187,13 +2263,18 @@ async function loadSelectedActivityIntoForm() {
 }
 
 async function handleLoadActivity() {
+  if (!confirmDiscardChanges(activityDirty)) {
+    return;
+  }
   loadActivityButton.disabled = true;
   setActivityStatus("Loading saved activity...");
   try {
     if (!(await loadSelectedActivityIntoForm())) {
+      activityDirty = false;
       setActivityStatus("No saved activity was found for this date.");
       return;
     }
+    activityDirty = false;
     setActivityStatus("Activity loaded.", "success");
   } catch (error) {
     setActivityStatus(error.message || "Could not load the activity.", "error");
@@ -2275,6 +2356,7 @@ async function handleSaveActivity() {
     await saveActivityToIndexedDb(record);
     currentActivityData = record;
     syncActivityToCloud(record);
+    activityDirty = false;
     setActivityStatus("Activity saved." + (authToken && authUser ? " Syncing to cloud..." : ""), "success");
   } catch (error) {
     setActivityStatus(error.message || "Could not save the activity.", "error");
@@ -2367,9 +2449,30 @@ function initializeActivityDescriptor() {
     downloadActivityDatabaseButton.addEventListener("click", handleDownloadActivityDatabase);
   }
 
+  var previousActivityDateValue = activityDateInput.value;
   activityDateInput.addEventListener("change", function () {
-    loadSelectedActivityIntoForm();
+    if (!confirmDiscardChanges(activityDirty, function () { activityDateInput.value = previousActivityDateValue; })) {
+      return;
+    }
+    previousActivityDateValue = activityDateInput.value;
+    loadSelectedActivityIntoForm().then(function () {
+      activityDirty = false;
+    });
   });
+
+  var activityDescriptorApp = document.querySelector("#activityDescriptorApp");
+  if (activityDescriptorApp) {
+    activityDescriptorApp.addEventListener("input", function (event) {
+      if (event.target !== activityDateInput) {
+        markActivityDirty();
+      }
+    });
+    activityDescriptorApp.addEventListener("change", function (event) {
+      if (event.target !== activityDateInput) {
+        markActivityDirty();
+      }
+    });
+  }
 }
 
 function initializePlanner() {
@@ -2384,6 +2487,21 @@ function initializePlanner() {
   renderSectionGrids();
   document.addEventListener("change", handleAttachmentInputChange);
   document.addEventListener("click", handleAttachmentRemoveClick);
+
+  var plannerAppEl = document.querySelector("#plannerApp");
+  if (plannerAppEl) {
+    plannerAppEl.addEventListener("input", function (event) {
+      if (event.target !== yearSelect && event.target !== monthSelect && event.target !== weekSelect) {
+        markPlannerDirty();
+      }
+    });
+    plannerAppEl.addEventListener("change", function (event) {
+      if (event.target !== yearSelect && event.target !== monthSelect && event.target !== weekSelect) {
+        markPlannerDirty();
+      }
+    });
+  }
+
   if (gridGenerateButton) {
     gridGenerateButton.addEventListener("click", handleGridGenerate);
   }
@@ -2411,17 +2529,30 @@ function initializePlanner() {
     });
   }
 
+  syncPreviousWeekSelectors();
+
   yearSelect.addEventListener("change", function () {
+    if (!confirmDiscardChanges(plannerDirty, function () { yearSelect.value = previousYearValue; })) {
+      return;
+    }
     renderWeekOptions();
     handleSelectedWeekChanged();
   });
 
   monthSelect.addEventListener("change", function () {
+    if (!confirmDiscardChanges(plannerDirty, function () { monthSelect.value = previousMonthValue; })) {
+      return;
+    }
     renderWeekOptions();
     handleSelectedWeekChanged();
   });
 
-  weekSelect.addEventListener("change", handleSelectedWeekChanged);
+  weekSelect.addEventListener("change", function () {
+    if (!confirmDiscardChanges(plannerDirty, function () { weekSelect.value = previousWeekValue; })) {
+      return;
+    }
+    handleSelectedWeekChanged();
+  });
   savePlanButton.addEventListener("click", handleSavePlan);
   loadPlanButton.addEventListener("click", handleLoadPlan);
   applyCurrentTemplateButton.addEventListener("click", handleApplyCurrentTemplate);
@@ -2431,6 +2562,16 @@ function initializePlanner() {
   confirmDatabaseDownloadButton.addEventListener("click", handleConfirmDatabaseDownload);
   databaseModal.addEventListener("click", function (event) {
     if (event.target === databaseModal) {
+      closeDatabaseModal();
+    }
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape") {
+      return;
+    }
+    if (authModal && !authModal.hidden) {
+      closeAuthModal();
+    } else if (databaseModal && !databaseModal.hidden) {
       closeDatabaseModal();
     }
   });
