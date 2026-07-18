@@ -11,7 +11,10 @@
   --line: #d8d1c3;
   --panel: #fffdf8;
   --shadow: 0 20px 40px rgba(27, 42, 42, 0.08);
-  font-family: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
+  --focus-ring: 0 0 0 3px rgba(30, 120, 112, 0.28);
+  --transition-fast: 150ms ease;
+  --transition-press: 90ms ease;
+  font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, "Trebuchet MS", sans-serif;
   background: var(--canvas);
   color: var(--ink);
 }
@@ -43,6 +46,23 @@ textarea {
 
 button {
   cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 .app-frame {
@@ -106,12 +126,17 @@ button {
   background: rgba(255, 255, 255, 0.06);
   color: #fffdf8;
   text-align: left;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-press);
 }
 
 .app-tab:hover,
 .app-tab.active {
   border-color: rgba(240, 196, 106, 0.72);
   background: rgba(240, 196, 106, 0.16);
+}
+
+.app-tab:active {
+  transform: scale(0.98);
 }
 
 .app-tab strong {
@@ -295,6 +320,24 @@ button {
   border-radius: 8px;
   background: #fffdf9;
   color: var(--ink);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.field input:hover,
+.field select:hover,
+.field textarea:hover,
+.activity-card textarea:hover,
+.activity-card select:hover {
+  border-color: #b8ac93;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.activity-card textarea:focus,
+.activity-card select:focus {
+  border-color: var(--teal);
+  box-shadow: var(--focus-ring);
 }
 
 .field textarea,
@@ -323,6 +366,20 @@ button {
   padding: 0 18px;
   border-radius: 8px;
   font-weight: 900;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast),
+    box-shadow var(--transition-fast), transform var(--transition-press), opacity var(--transition-fast);
+}
+
+.primary-button:active,
+.secondary-button:active {
+  transform: scale(0.97);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .primary-button {
@@ -331,16 +388,31 @@ button {
   color: #ffffff;
 }
 
+.primary-button:hover:not(:disabled) {
+  background: var(--teal-deep);
+  box-shadow: 0 6px 16px rgba(21, 88, 81, 0.28);
+}
+
 .primary-button.accent {
   border-color: #b67f1b;
   background: var(--gold);
   color: #2f2410;
 }
 
+.primary-button.accent:hover:not(:disabled) {
+  background: #c68f2c;
+  box-shadow: 0 6px 16px rgba(182, 127, 27, 0.28);
+}
+
 .secondary-button {
   border: 1px solid var(--line);
   background: #f8f4ec;
   color: var(--ink);
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: #efe7d6;
+  border-color: #c9bc9e;
 }
 
 .status-text {
@@ -364,6 +436,7 @@ button {
 }
 
 .day-chip {
+  position: relative;
   min-height: 86px;
   padding: 12px;
   border: 1px solid var(--line);
@@ -380,6 +453,28 @@ button {
 .day-chip span {
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.day-chip.is-today {
+  border-color: var(--teal);
+  border-width: 2px;
+  padding: 11px;
+  background: linear-gradient(180deg, rgba(30, 120, 112, 0.16), rgba(255, 255, 255, 0.98));
+}
+
+.day-chip.is-today::after {
+  content: "Today";
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--teal);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .section-heading {
@@ -438,6 +533,11 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fffefa;
+  transition: border-color var(--transition-fast);
+}
+
+.activity-card:focus-within {
+  border-color: var(--teal);
 }
 
 .activity-card h3 {
@@ -474,6 +574,7 @@ button {
   font-weight: 700;
   text-decoration: none;
   word-break: break-word;
+  transition: color var(--transition-fast);
 }
 
 .attachment-link:hover {
@@ -504,6 +605,7 @@ button {
   font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
+  transition: color var(--transition-fast);
 }
 
 .attachment-remove:hover {
@@ -544,6 +646,10 @@ button {
   align-items: center;
   gap: 10px;
   width: 100%;
+}
+
+.auth-user-info[hidden] {
+  display: none;
 }
 
 .auth-email {
@@ -595,6 +701,27 @@ button {
   place-items: center;
   padding: 18px;
   background: rgba(31, 46, 47, 0.42);
+  animation: modal-backdrop-fade var(--transition-fast) ease;
+}
+
+@keyframes modal-backdrop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .modal-backdrop[hidden] {
@@ -612,6 +739,7 @@ button {
   border-radius: 8px;
   background: var(--panel);
   box-shadow: 0 24px 80px rgba(20, 30, 30, 0.22);
+  animation: modal-panel-in 200ms ease;
 }
 
 .modal-heading {
@@ -626,14 +754,27 @@ button {
 }
 
 .icon-button {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #f8f4ec;
   color: var(--ink);
   font-size: 1.45rem;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-press);
+}
+
+.icon-button:hover {
+  background: #efe7d6;
+  border-color: #c9bc9e;
+}
+
+.icon-button:active {
+  transform: scale(0.95);
 }
 
 .week-select-list {
@@ -727,10 +868,15 @@ button {
   font-weight: 700;
   font-size: 1.2rem;
   line-height: 1;
+  transition: background-color var(--transition-fast), transform var(--transition-press);
 }
 
 .activity-field-remove:hover {
   background: rgba(159, 47, 47, 0.1);
+}
+
+.activity-field-remove:active {
+  transform: scale(0.95);
 }
 
 

@@ -905,19 +905,26 @@ function selectedWeekData() {
   return computeMonthWeeks(selectedYear(), month)[weekNumber - 1];
 }
 
+function isToday(date) {
+  var now = new Date();
+  return !!date && date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+}
+
 function renderWeekDays() {
   var weekData = selectedWeekData();
   var html = "";
   var i;
   var dateLabel;
+  var chipClass;
 
   currentYearLabel.textContent = String(selectedYear());
   selectedWeekRange.textContent = titleCaseWeekRange(weekData);
 
   for (i = 0; i < dayLabels.length; i += 1) {
     dateLabel = weekData.dates[i] ? formatDateLabel(weekData.dates[i]) : "Outside this month";
+    chipClass = "day-chip" + (isToday(weekData.dates[i]) ? " is-today" : "");
     html +=
-      '<div class="day-chip">' +
+      '<div class="' + chipClass + '">' +
       "<strong>" +
       dayLabels[i] +
       "</strong>" +
