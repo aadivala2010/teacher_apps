@@ -302,6 +302,10 @@ button {
   resize: vertical;
 }
 
+.field textarea {
+  height: 68px;
+}
+
 .field-wide {
   grid-column: span 2;
 }
@@ -442,11 +446,11 @@ button {
 }
 
 .activity-card textarea {
-  min-height: 132px;
+  height: 132px;
 }
 
 .single-grid .activity-card textarea {
-  min-height: 140px;
+  height: 140px;
 }
 
 .attachment-row {
@@ -698,7 +702,7 @@ button {
 }
 
 .activity-field-item textarea {
-  min-height: 80px;
+  height: 80px;
   resize: vertical;
 }
 
