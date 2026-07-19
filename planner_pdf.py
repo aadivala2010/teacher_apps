@@ -29,6 +29,12 @@ CHAR_WIDTH_FACTOR = 0.50
 LINE_HEIGHT_FACTOR = 1.35
 MIN_FONT_SIZE = 4.0
 
+# All content boxes share one font size (the Small Group / Learning Experiences
+# style, Calibri 8) so the page looks uniform; only these header fields keep
+# their own independent size.
+HEADER_FIELDS = {"Week", "Class", "Program"}
+UNIFORM_MAX_SIZE = 8.0
+
 
 def _activity_text(plan: dict[str, object], section_name: str, key: str) -> str:
     activities = plan.get("activities") or {}
@@ -159,6 +165,7 @@ def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> No
         return
 
     re_da = re.compile(r"^\s*/(\w+)\s+([\d.]+)\s+Tf\s")
+    collected: list[tuple[object, str, str, float, float, float]] = []
 
     def _walk_fields(entries: list) -> None:
         for entry_ref in entries:
@@ -170,11 +177,7 @@ def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> No
             name = entry.get("/T")
             if not name or not isinstance(name, str):
                 continue
-            text = field_values.get(name)
-            if not text:
-                continue
-            ft = entry.get("/FT")
-            if ft != "/Tx":
+            if entry.get("/FT") != "/Tx":
                 continue
             rect = entry.get("/Rect")
             if not rect:
@@ -184,22 +187,37 @@ def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> No
             height = float(y2) - float(y1)
             if width <= 0 or height <= 0:
                 continue
-
-            da = str(entry.get("/DA", ""))
-            m = re_da.match(da)
+            m = re_da.match(str(entry.get("/DA", "")))
             if not m:
                 continue
-            font_name = m.group(1)
-            current_size = float(m.group(2))
-            new_size = _optimal_font_size(text, width, height, current_size)
-            if new_size < current_size:
-                entry[NameObject("/DA")] = create_string_object(f"/{font_name} {new_size} Tf 0 g")
+            collected.append((entry, name, m.group(1), float(m.group(2)), width, height))
 
     try:
         from pypdf.generic import NameObject, create_string_object
-        _walk_fields(field_entries)
     except ImportError:
-        pass
+        return
+    _walk_fields(field_entries)
+
+    # One shared size for every content box: the largest size (capped at the
+    # Small Group style's 8pt) at which the fullest box still fits.
+    uniform_size = UNIFORM_MAX_SIZE
+    for _, name, _, _, width, height in collected:
+        text = field_values.get(name)
+        if not text or name in HEADER_FIELDS:
+            continue
+        uniform_size = min(uniform_size, _optimal_font_size(text, width, height, UNIFORM_MAX_SIZE))
+
+    for entry, name, font_name, current_size, width, height in collected:
+        if name in HEADER_FIELDS:
+            text = field_values.get(name)
+            if not text:
+                continue
+            new_size = _optimal_font_size(text, width, height, current_size)
+            if new_size >= current_size:
+                continue
+        else:
+            new_size = uniform_size
+        entry[NameObject("/DA")] = create_string_object(f"/{font_name} {new_size} Tf 0 g")
 
 
 def output_filename(plan: dict[str, object]) -> str:

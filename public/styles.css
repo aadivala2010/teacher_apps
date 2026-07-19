@@ -956,6 +956,11 @@ textarea:focus-visible,
   resize: vertical;
 }
 
+/* Descriptor text matches the exported template's Times New Roman */
+#activityDescriptorApp textarea {
+  font-family: "Times New Roman", Times, serif;
+}
+
 .activity-field-item .field {
   gap: 6px;
 }

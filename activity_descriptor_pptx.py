@@ -28,6 +28,8 @@ MIN_FONT_PT = 8.0
 LINE_HEIGHT_FACTOR = 1.1
 LINE_SPACING_AFTER_PT = 3.0
 AVG_CHAR_WIDTH_FACTOR = 0.40  # measured avg advance width / size for the template's font (Tw Cen MT); 0.55 was an untuned guess that shrank text well below what actually fits
+CONTENT_FONT = "Times New Roman"
+TIMES_CHAR_WIDTH_FACTOR = 0.48  # Times New Roman is wider than Tw Cen MT
 PANEL_MIN_HEIGHT_EMU = 900000  # filters out small decorative rectangles, keeps the big background cards
 
 
@@ -49,7 +51,7 @@ def _panel_bottom_emu(shape, layout_shapes) -> int:
     return shape_top + shape.height
 
 
-def _fit_font_size_pt(shape, lines: list[str], layout_shapes) -> float:
+def _fit_font_size_pt(shape, lines: list[str], layout_shapes, char_width_factor: float = AVG_CHAR_WIDTH_FACTOR) -> float:
     """Shrink below FONT_PT only as much as needed for all lines to fit the shape, like PowerPoint's "shrink text on overflow" — but computed and baked into the XML directly, since viewers don't reliably recompute normAutofit on their own."""
     tf = shape.text_frame
     available_width = max((shape.width - (tf.margin_left or 0) - (tf.margin_right or 0)) / 12700.0, 1.0)
@@ -58,7 +60,7 @@ def _fit_font_size_pt(shape, lines: list[str], layout_shapes) -> float:
 
     size = FONT_PT
     while size > MIN_FONT_PT:
-        chars_per_line = max(1, int(available_width / (size * AVG_CHAR_WIDTH_FACTOR)))
+        chars_per_line = max(1, int(available_width / (size * char_width_factor)))
         total_height = sum(
             max(1, math.ceil(len(line) / chars_per_line)) * size * LINE_HEIGHT_FACTOR + LINE_SPACING_AFTER_PT
             for line in lines
@@ -91,7 +93,7 @@ def _remove_bullet(p_elem) -> None:
     pPr.insert(insert_index, pPr.makeelement(qn("a:buNone"), {}))
 
 
-def _set_text_box(shape, text: str, layout_shapes) -> None:
+def _set_text_box(shape, text: str, layout_shapes, size_pt: float | None = None, font_name: str | None = None) -> None:
     """Replace text in a shape's text frame, preserving first-run formatting."""
     tf = shape.text_frame
 
@@ -118,7 +120,12 @@ def _set_text_box(shape, text: str, layout_shapes) -> None:
     run0.text = lines[0]
     if first_run:
         run0.font.bold = first_run.font.bold
-    run0.font.size = Pt(_fit_font_size_pt(shape, lines, layout_shapes))
+    run0.font.size = Pt(size_pt if size_pt is not None else _fit_font_size_pt(shape, lines, layout_shapes))
+    if font_name:
+        run0.font.name = font_name
+        # Same line spacing everywhere so no box looks tighter than another
+        first_para.line_spacing = LINE_HEIGHT_FACTOR
+        first_para.space_after = Pt(LINE_SPACING_AFTER_PT)
 
     first_p_elem = first_para._p
     _remove_bullet(first_p_elem)
@@ -164,9 +171,24 @@ def build_activity_descriptor_pptx(payload: dict) -> tuple[bytes, str]:
     skills = payload.get("skills", [])
     links = payload.get("links", [])
 
+    content_texts = {
+        "Text Box 19": "\n".join(a for a in activities if a),
+        "Text Box 20": "\n".join(f"- {s}" for s in skills if s),
+        "Text Box 21": "\n".join(f"• {l}" for l in links if l),
+    }
+
     prs = Presentation(str(TEMPLATE_PATH))
     slide = prs.slides[0]
     layout_shapes = list(slide.slide_layout.shapes)
+
+    # One shared size for all content boxes: whatever the fullest box needs.
+    shared_size = FONT_PT
+    for shape in slide.shapes:
+        if shape.has_text_frame and shape.name in content_texts and content_texts[shape.name]:
+            shared_size = min(
+                shared_size,
+                _fit_font_size_pt(shape, content_texts[shape.name].split("\n"), layout_shapes, TIMES_CHAR_WIDTH_FACTOR),
+            )
 
     for shape in slide.shapes:
         if not shape.has_text_frame:
@@ -174,16 +196,10 @@ def build_activity_descriptor_pptx(payload: dict) -> tuple[bytes, str]:
         name = shape.name
         if name == "Text Box 18":
             _set_text_box(shape, date_str, layout_shapes)
-        elif name == "Text Box 19":
-            text = "\n".join(a for a in activities if a)
-            _set_text_box(shape, text, layout_shapes)
-        elif name == "Text Box 20":
-            text = "\n".join(s for s in skills if s)
-            _set_text_box(shape, text, layout_shapes)
-        elif name == "Text Box 21":
-            if links:
-                text = "\n".join(l for l in links if l)
-                _set_text_box(shape, text, layout_shapes)
+        elif name in content_texts:
+            if name == "Text Box 21" and not links:
+                continue
+            _set_text_box(shape, content_texts[name], layout_shapes, shared_size, CONTENT_FONT)
 
     buf = BytesIO()
     prs.save(buf)
