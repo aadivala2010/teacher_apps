@@ -4,9 +4,10 @@ from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
 
+import math
+
 from lxml import etree
 from pptx import Presentation
-from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.oxml.ns import qn
 from pptx.util import Pt
 
@@ -22,6 +23,29 @@ LINKS_TEXT = (
 )
 
 FONT_PT = 12.0
+MIN_FONT_PT = 8.0
+LINE_HEIGHT_FACTOR = 1.2
+LINE_SPACING_AFTER_PT = 3.0
+AVG_CHAR_WIDTH_FACTOR = 0.55
+
+
+def _fit_font_size_pt(shape, lines: list[str]) -> float:
+    """Shrink below FONT_PT only as much as needed for all lines to fit the shape, like PowerPoint's "shrink text on overflow" — but computed and baked into the XML directly, since viewers don't reliably recompute normAutofit on their own."""
+    tf = shape.text_frame
+    available_width = max((shape.width - (tf.margin_left or 0) - (tf.margin_right or 0)) / 12700.0, 1.0)
+    available_height = max((shape.height - (tf.margin_top or 0) - (tf.margin_bottom or 0)) / 12700.0, 1.0)
+
+    size = FONT_PT
+    while size > MIN_FONT_PT:
+        chars_per_line = max(1, int(available_width / (size * AVG_CHAR_WIDTH_FACTOR)))
+        total_height = sum(
+            max(1, math.ceil(len(line) / chars_per_line)) * size * LINE_HEIGHT_FACTOR + LINE_SPACING_AFTER_PT
+            for line in lines
+        )
+        if total_height <= available_height:
+            return size
+        size -= 0.5
+    return MIN_FONT_PT
 
 
 _BULLET_TAGS = (
@@ -49,7 +73,6 @@ def _remove_bullet(p_elem) -> None:
 def _set_text_box(shape, text: str) -> None:
     """Replace text in a shape's text frame, preserving first-run formatting."""
     tf = shape.text_frame
-    tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
 
     # Grab formatting from the first run of the first paragraph if it exists
     first_run = None
@@ -74,7 +97,7 @@ def _set_text_box(shape, text: str) -> None:
     run0.text = lines[0]
     if first_run:
         run0.font.bold = first_run.font.bold
-    run0.font.size = Pt(FONT_PT)
+    run0.font.size = Pt(_fit_font_size_pt(shape, lines))
 
     first_p_elem = first_para._p
     _remove_bullet(first_p_elem)
