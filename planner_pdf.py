@@ -30,9 +30,10 @@ LINE_HEIGHT_FACTOR = 1.35
 MIN_FONT_SIZE = 4.0
 
 # All content boxes share one font size (the Small Group / Learning Experiences
-# style, Calibri 8) so the page looks uniform; only these header fields keep
-# their own independent size.
-HEADER_FIELDS = {"Week", "Class", "Program"}
+# style, 8pt) so the page looks uniform. Single-line banner fields are excluded:
+# their boxes are too short for the multiline height math and would drag the
+# whole page down; they only shrink if their text overflows the width.
+SINGLE_LINE_FIELDS = {"Week", "Class", "Program", "Books"}
 UNIFORM_MAX_SIZE = 8.0
 
 
@@ -136,8 +137,8 @@ def _field_map(plan: dict[str, object]) -> dict[str, str]:
 
 
 def _optimal_font_size(text: str, field_width: float, field_height: float, max_size: float) -> float:
-    text_len = len(str(text))
-    if text_len == 0:
+    paragraphs = str(text).split("\n")
+    if not any(paragraphs):
         return max_size
 
     # Safety margin: reserve 3pt at top and bottom
@@ -146,7 +147,8 @@ def _optimal_font_size(text: str, field_width: float, field_height: float, max_s
     for _ in range(12):
         mid = (lo + hi) / 2
         chars_per_line = max(1, field_width / (CHAR_WIDTH_FACTOR * mid))
-        lines_needed = (text_len + chars_per_line - 1) // chars_per_line
+        # Each explicit line wraps on its own; even an empty line takes a row
+        lines_needed = sum(max(1, math.ceil(len(p) / chars_per_line)) for p in paragraphs)
         height_needed = lines_needed * LINE_HEIGHT_FACTOR * mid
         if height_needed <= usable_height:
             lo = mid
@@ -203,21 +205,24 @@ def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> No
     uniform_size = UNIFORM_MAX_SIZE
     for _, name, _, _, width, height in collected:
         text = field_values.get(name)
-        if not text or name in HEADER_FIELDS:
+        if not text or name in SINGLE_LINE_FIELDS:
             continue
         uniform_size = min(uniform_size, _optimal_font_size(text, width, height, UNIFORM_MAX_SIZE))
 
-    for entry, name, font_name, current_size, width, height in collected:
-        if name in HEADER_FIELDS:
+    # Always /Helv: the template's fields declare Calibri, which pypdf has no
+    # width data for — appearance streams then silently fall back to Helvetica
+    # while viewers that regenerate use real Calibri, so boxes render in
+    # visibly different fonts. Helv is a standard font every renderer agrees on.
+    for entry, name, _, current_size, width, height in collected:
+        if name in SINGLE_LINE_FIELDS:
             text = field_values.get(name)
-            if not text:
-                continue
-            new_size = _optimal_font_size(text, width, height, current_size)
-            if new_size >= current_size:
-                continue
+            new_size = current_size
+            if text:
+                width_fit = math.floor((width - 4.0) / (CHAR_WIDTH_FACTOR * len(text)) * 10) / 10
+                new_size = max(MIN_FONT_SIZE, min(current_size, width_fit))
         else:
             new_size = uniform_size
-        entry[NameObject("/DA")] = create_string_object(f"/{font_name} {new_size} Tf 0 g")
+        entry[NameObject("/DA")] = create_string_object(f"/Helv {new_size} Tf 0 g")
 
 
 def output_filename(plan: dict[str, object]) -> str:
