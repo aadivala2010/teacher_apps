@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
@@ -21,26 +20,7 @@ LINKS_TEXT = (
     "Social Emotional"
 )
 
-DEFAULT_FONT_PT = 12.0
-MIN_AUTOFIT_FONT_PT = 8.0
-LINE_HEIGHT_FACTOR = 1.2
-AVG_CHAR_WIDTH_FACTOR = 0.52
-
-
-def _fit_font_size_pt(shape, lines: list[str], original_pt: float) -> float:
-    """Shrink the font size just enough that the given lines fit the shape, like PowerPoint's "shrink text on overflow"."""
-    tf = shape.text_frame
-    available_width = max((shape.width - (tf.margin_left or 0) - (tf.margin_right or 0)) / 12700.0, 1.0)
-    available_height = max((shape.height - (tf.margin_top or 0) - (tf.margin_bottom or 0)) / 12700.0, 1.0)
-
-    size = original_pt
-    while size > MIN_AUTOFIT_FONT_PT:
-        chars_per_line = max(1, int(available_width / (size * AVG_CHAR_WIDTH_FACTOR)))
-        total_lines = sum(max(1, math.ceil(len(line) / chars_per_line)) for line in lines)
-        if total_lines * size * LINE_HEIGHT_FACTOR <= available_height:
-            return size
-        size -= 0.5
-    return MIN_AUTOFIT_FONT_PT
+FONT_PT = 12.0
 
 
 _BULLET_TAGS = (
@@ -90,12 +70,9 @@ def _set_text_box(shape, text: str) -> None:
     # Add the first line to the existing paragraph
     run0 = first_para.add_run()
     run0.text = lines[0]
-    original_pt = DEFAULT_FONT_PT
     if first_run:
         run0.font.bold = first_run.font.bold
-        if first_run.font.size:
-            original_pt = first_run.font.size.pt
-    run0.font.size = Pt(_fit_font_size_pt(shape, lines, original_pt))
+    run0.font.size = Pt(FONT_PT)
 
     first_p_elem = first_para._p
     _remove_bullet(first_p_elem)
