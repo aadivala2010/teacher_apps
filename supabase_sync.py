@@ -222,6 +222,7 @@ def save_plan(access_token: str, payload: dict[str, Any]) -> dict[str, Any]:
         "weekEnd": payload.get("weekEnd", ""),
         "className": payload.get("className", ""),
         "programName": payload.get("programName", ""),
+        "theme": payload.get("theme", ""),
         "books": payload.get("books", ""),
         "outdoorLearning": payload.get("outdoorLearning", ""),
         "outdoorAssessment": payload.get("outdoorAssessment", ""),

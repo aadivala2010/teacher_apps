@@ -38,6 +38,7 @@ def init_db() -> None:
                 week_end TEXT NOT NULL,
                 class_name TEXT NOT NULL DEFAULT '',
                 program_name TEXT NOT NULL DEFAULT '',
+                theme TEXT NOT NULL DEFAULT '',
                 books TEXT NOT NULL DEFAULT '',
                 outdoor_learning TEXT NOT NULL DEFAULT '',
                 outdoor_assessment TEXT NOT NULL DEFAULT '',
@@ -54,6 +55,7 @@ def init_db() -> None:
                 template_name TEXT NOT NULL DEFAULT '',
                 class_name TEXT NOT NULL DEFAULT '',
                 program_name TEXT NOT NULL DEFAULT '',
+                theme TEXT NOT NULL DEFAULT '',
                 books TEXT NOT NULL DEFAULT '',
                 outdoor_learning TEXT NOT NULL DEFAULT '',
                 outdoor_assessment TEXT NOT NULL DEFAULT '',
@@ -77,6 +79,14 @@ def init_db() -> None:
             );
             """
         )
+        _add_column_if_missing(conn, "plans", "theme", "TEXT NOT NULL DEFAULT ''")
+        _add_column_if_missing(conn, "templates", "theme", "TEXT NOT NULL DEFAULT ''")
+
+
+def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, ddl_type: str) -> None:
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}")
 
 
 def _attachment_map(conn: sqlite3.Connection, owner_type: str, owner_id: int) -> dict[str, dict[str, object]]:
@@ -110,6 +120,7 @@ def _serialize_plan(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, obj
         "weekEnd": row["week_end"],
         "className": row["class_name"],
         "programName": row["program_name"],
+        "theme": row["theme"],
         "books": row["books"],
         "outdoorLearning": row["outdoor_learning"],
         "outdoorAssessment": row["outdoor_assessment"],
@@ -127,6 +138,7 @@ def _serialize_template(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str,
         "templateName": row["template_name"],
         "className": row["class_name"],
         "programName": row["program_name"],
+        "theme": row["theme"],
         "books": row["books"],
         "outdoorLearning": row["outdoor_learning"],
         "outdoorAssessment": row["outdoor_assessment"],
@@ -210,6 +222,7 @@ def save_plan(payload: dict[str, object], attachments: dict[str, dict[str, objec
                     week_end = ?,
                     class_name = ?,
                     program_name = ?,
+                    theme = ?,
                     books = ?,
                     outdoor_learning = ?,
                     outdoor_assessment = ?,
@@ -222,6 +235,7 @@ def save_plan(payload: dict[str, object], attachments: dict[str, dict[str, objec
                     payload["weekEnd"],
                     payload.get("className", ""),
                     payload.get("programName", ""),
+                    payload.get("theme", ""),
                     payload.get("books", ""),
                     payload.get("outdoorLearning", ""),
                     payload.get("outdoorAssessment", ""),
@@ -236,8 +250,8 @@ def save_plan(payload: dict[str, object], attachments: dict[str, dict[str, objec
                 """
                 INSERT INTO plans (
                     year, month, week_number, week_start, week_end, class_name, program_name,
-                    books, outdoor_learning, outdoor_assessment, activities_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    theme, books, outdoor_learning, outdoor_assessment, activities_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload["year"],
@@ -247,6 +261,7 @@ def save_plan(payload: dict[str, object], attachments: dict[str, dict[str, objec
                     payload["weekEnd"],
                     payload.get("className", ""),
                     payload.get("programName", ""),
+                    payload.get("theme", ""),
                     payload.get("books", ""),
                     payload.get("outdoorLearning", ""),
                     payload.get("outdoorAssessment", ""),
@@ -309,6 +324,7 @@ def save_template(payload: dict[str, object], attachments: dict[str, dict[str, o
                 SET template_name = ?,
                     class_name = ?,
                     program_name = ?,
+                    theme = ?,
                     books = ?,
                     outdoor_learning = ?,
                     outdoor_assessment = ?,
@@ -320,6 +336,7 @@ def save_template(payload: dict[str, object], attachments: dict[str, dict[str, o
                     payload.get("templateName", ""),
                     payload.get("className", ""),
                     payload.get("programName", ""),
+                    payload.get("theme", ""),
                     payload.get("books", ""),
                     payload.get("outdoorLearning", ""),
                     payload.get("outdoorAssessment", ""),
@@ -333,9 +350,9 @@ def save_template(payload: dict[str, object], attachments: dict[str, dict[str, o
             cursor = conn.execute(
                 """
                 INSERT INTO templates (
-                    month, week_number, template_name, class_name, program_name, books,
+                    month, week_number, template_name, class_name, program_name, theme, books,
                     outdoor_learning, outdoor_assessment, activities_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload["month"],
@@ -343,6 +360,7 @@ def save_template(payload: dict[str, object], attachments: dict[str, dict[str, o
                     payload.get("templateName", ""),
                     payload.get("className", ""),
                     payload.get("programName", ""),
+                    payload.get("theme", ""),
                     payload.get("books", ""),
                     payload.get("outdoorLearning", ""),
                     payload.get("outdoorAssessment", ""),
