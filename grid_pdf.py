@@ -19,6 +19,9 @@ GRID_ROWS = 4
 GRID_SLOTS = GRID_COLS * GRID_ROWS
 GRID_CELL_ASPECT = 3 / 2  # width:height
 
+TWO_PER_PAGE_MARGIN = 60
+TWO_PER_PAGE_GAP = 9  # ~3 CSS px (96dpi) scaled to this canvas's 300dpi
+
 
 def compress_image_bytes(content: bytes, max_bytes: int = MAX_UPLOAD_BYTES) -> bytes:
     try:
@@ -101,6 +104,45 @@ def build_grid_pdf(files: list[dict[str, object]]) -> bytes:
     for start in range(0, len(images), 4):
         page = Image.new("RGB", PAGE_SIZE, BACKGROUND)
         for index, file in enumerate(images[start : start + 4]):
+            image = _prepare_image(bytes(file.get("content") or b""), (cell_width, cell_height))
+            x, y = positions[index]
+            x += (cell_width - image.width) // 2
+            y += (cell_height - image.height) // 2
+            page.paste(image, (x, y))
+        pages.append(page)
+
+    output = BytesIO()
+    pages[0].save(output, format="PDF", save_all=True, append_images=pages[1:], resolution=300.0)
+    return output.getvalue()
+
+
+def build_two_per_page_pdf(files: list[dict[str, object]], stacked: bool) -> bytes:
+    images = [file for file in files if is_supported_image(str(file.get("filename") or ""))]
+    if not images:
+        raise ValueError("Upload at least one supported image.")
+
+    page_width, page_height = PAGE_SIZE_A4
+    avail_width = page_width - 2 * TWO_PER_PAGE_MARGIN
+    avail_height = page_height - 2 * TWO_PER_PAGE_MARGIN
+    if stacked:
+        cell_width = avail_width
+        cell_height = (avail_height - TWO_PER_PAGE_GAP) // 2
+        positions = [
+            (TWO_PER_PAGE_MARGIN, TWO_PER_PAGE_MARGIN),
+            (TWO_PER_PAGE_MARGIN, TWO_PER_PAGE_MARGIN + cell_height + TWO_PER_PAGE_GAP),
+        ]
+    else:
+        cell_width = (avail_width - TWO_PER_PAGE_GAP) // 2
+        cell_height = avail_height
+        positions = [
+            (TWO_PER_PAGE_MARGIN, TWO_PER_PAGE_MARGIN),
+            (TWO_PER_PAGE_MARGIN + cell_width + TWO_PER_PAGE_GAP, TWO_PER_PAGE_MARGIN),
+        ]
+
+    pages: list[Image.Image] = []
+    for start in range(0, len(images), 2):
+        page = Image.new("RGB", PAGE_SIZE_A4, BACKGROUND)
+        for index, file in enumerate(images[start : start + 2]):
             image = _prepare_image(bytes(file.get("content") or b""), (cell_width, cell_height))
             x, y = positions[index]
             x += (cell_width - image.width) // 2

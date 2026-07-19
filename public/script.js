@@ -25,6 +25,7 @@ var gridImageInput = document.querySelector("#gridImageInput");
 var gridImageFilesInput = document.querySelector("#gridImageFilesInput");
 var gridGenerateButton = document.querySelector("#gridGenerateButton");
 var gridStatus = document.querySelector("#gridStatus");
+var gridOrientationField = document.querySelector("#gridOrientationField");
 var gridPrintCellsContainer = document.querySelector("#gridPrintCells");
 var gridPrintGenerateButton = document.querySelector("#gridPrintGenerateButton");
 var gridPrintClearButton = document.querySelector("#gridPrintClearButton");
@@ -1739,6 +1740,22 @@ function batchGridFilesBySize(files) {
   return batches;
 }
 
+function selectedGridLayout() {
+  var checked = document.querySelector('input[name="gridLayout"]:checked');
+  return checked ? checked.value : "grid";
+}
+
+function selectedGridOrientation() {
+  var checked = document.querySelector('input[name="gridOrientation"]:checked');
+  return checked ? checked.value : "side";
+}
+
+function updateGridOrientationVisibility() {
+  if (gridOrientationField) {
+    gridOrientationField.hidden = selectedGridLayout() !== "two-per-page";
+  }
+}
+
 async function handleGridGenerate() {
   var folderFiles = Array.prototype.slice.call((gridImageInput && gridImageInput.files) || []);
   var individualFiles = Array.prototype.slice.call((gridImageFilesInput && gridImageFilesInput.files) || []);
@@ -1748,6 +1765,9 @@ async function handleGridGenerate() {
     var bName = b.webkitRelativePath || b.name || "";
     return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: "base" });
   });
+  var layout = selectedGridLayout();
+  var orientation = selectedGridOrientation();
+  var baseName = layout === "two-per-page" ? "2-per-page" : "2x2";
   var batches;
   var formData;
   var response;
@@ -1770,9 +1790,11 @@ async function handleGridGenerate() {
       setGridStatus(
         batches.length > 1
           ? "Creating PDF " + (i + 1) + " of " + batches.length + "..."
-          : "Creating 2x2.pdf..."
+          : "Creating " + baseName + ".pdf..."
       );
       formData = new FormData();
+      formData.append("layout", layout);
+      formData.append("orientation", orientation);
       batches[i].forEach(function (file, index) {
         formData.append("images::" + index, file, file.webkitRelativePath || file.name);
       });
@@ -1784,17 +1806,17 @@ async function handleGridGenerate() {
         throw new Error(await gridErrorMessageFromResponse(response));
       }
       blob = await response.blob();
-      downloadBlob(blob, batches.length > 1 ? "2x2-part-" + (i + 1) + ".pdf" : "2x2.pdf");
+      downloadBlob(blob, batches.length > 1 ? baseName + "-part-" + (i + 1) + ".pdf" : baseName + ".pdf");
     }
     setGridStatus(
       (batches.length > 1
         ? batches.length + " PDF files were created (too many images for one file) with "
-        : "2x2.pdf was created with ") +
+        : baseName + ".pdf was created with ") +
         imageFiles.length + " image" + (imageFiles.length === 1 ? "." : "s."),
       "success"
     );
   } catch (error) {
-    setGridStatus(error.message || "Could not generate the 2x2 PDF.", "error");
+    setGridStatus(error.message || "Could not generate the PDF.", "error");
   } finally {
     gridGenerateButton.disabled = false;
   }
@@ -2647,6 +2669,10 @@ function initializePlanner() {
   if (gridGenerateButton) {
     gridGenerateButton.addEventListener("click", handleGridGenerate);
   }
+  document.querySelectorAll('input[name="gridLayout"]').forEach(function (radio) {
+    radio.addEventListener("change", updateGridOrientationVisibility);
+  });
+  updateGridOrientationVisibility();
 
   initializeGridPrint();
 

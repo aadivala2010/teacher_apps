@@ -520,15 +520,20 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(result)
 
     def handle_grid_pdf(self) -> None:
-        _, files = self.parse_multipart_body()
+        fields, files = self.parse_multipart_body()
         image_files = [value for key, value in files.items() if key.startswith("images")]
         for f in image_files:
             f["content"] = grid_pdf.compress_image_bytes(f.get("content") or b"")
-        result = grid_pdf.build_grid_pdf(image_files)
+        if fields.get("layout") == "two-per-page":
+            result = grid_pdf.build_two_per_page_pdf(image_files, fields.get("orientation") == "stack")
+            filename = "2-per-page.pdf"
+        else:
+            result = grid_pdf.build_grid_pdf(image_files)
+            filename = "2x2.pdf"
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/pdf")
         self.send_header("Content-Length", str(len(result)))
-        self.send_header("Content-Disposition", 'attachment; filename="2x2.pdf"')
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.end_headers()
         self.wfile.write(result)
 

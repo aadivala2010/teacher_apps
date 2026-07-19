@@ -213,19 +213,19 @@
             <header class="hero-band app-hero">
               <div class="hero-copy">
                 <p class="eyebrow">Image Grid PDF</p>
-                <h1>Turn an image folder into a clean 2x2 PDF</h1>
+                <h1>Turn an image folder into a clean grid PDF</h1>
                 <p class="hero-text">
-                  Select a folder, generate <strong>2x2.pdf</strong>, and get four images per page with no headers, footers, or extra text.
+                  Select a folder, choose a layout, and get an image-only PDF with no headers, footers, or extra text.
                 </p>
               </div>
             </header>
 
             <section class="grid-tool" aria-labelledby="gridToolHeading">
               <div>
-                <p class="eyebrow">Separate App</p>
-                <h2 id="gridToolHeading">Image Folder to 2x2 PDF</h2>
+                <p class="eyebrow">Image Folder to PDF</p>
+                <h2 id="gridToolHeading">Image Folder to Grid PDF</h2>
                 <p>
-                  Select an image folder and generate a clean <strong>2x2.pdf</strong> with four images per page.
+                  Select an image folder and generate a clean PDF laid out in your chosen layout.
                   The PDF contains only images, with no page numbers or added text.
                 </p>
               </div>
@@ -250,8 +250,22 @@
                     multiple
                   />
                 </label>
-                <button id="gridGenerateButton" class="primary-button accent" type="button">Generate 2x2.pdf</button>
-                <p id="gridStatus" class="status-text" role="status" aria-live="polite">Choose a folder or individual images to make a 2x2 PDF.</p>
+                <div class="field">
+                  <span>Layout</span>
+                  <div class="radio-row">
+                    <label><input type="radio" name="gridLayout" value="grid" checked /> 2x2 grid (4 per page)</label>
+                    <label><input type="radio" name="gridLayout" value="two-per-page" /> 2 per page (A4)</label>
+                  </div>
+                </div>
+                <div class="field" id="gridOrientationField" hidden>
+                  <span>2-per-page orientation</span>
+                  <div class="radio-row">
+                    <label><input type="radio" name="gridOrientation" value="side" checked /> Side by side</label>
+                    <label><input type="radio" name="gridOrientation" value="stack" /> Up and down</label>
+                  </div>
+                </div>
+                <button id="gridGenerateButton" class="primary-button accent" type="button">Generate PDF</button>
+                <p id="gridStatus" class="status-text" role="status" aria-live="polite">Choose a folder or individual images, pick a layout, then generate the PDF.</p>
               </div>
             </section>
           </div>
