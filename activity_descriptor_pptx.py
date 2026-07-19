@@ -24,16 +24,36 @@ LINKS_TEXT = (
 
 FONT_PT = 12.0
 MIN_FONT_PT = 8.0
-LINE_HEIGHT_FACTOR = 1.2
+LINE_HEIGHT_FACTOR = 1.1
 LINE_SPACING_AFTER_PT = 3.0
 AVG_CHAR_WIDTH_FACTOR = 0.55
+PANEL_MIN_HEIGHT_EMU = 900000  # filters out small decorative rectangles, keeps the big background cards
 
 
-def _fit_font_size_pt(shape, lines: list[str]) -> float:
+def _panel_bottom_emu(shape, layout_shapes) -> int:
+    """The colored background card a text box sits on (drawn on the slide layout) can be a different size than the
+    text box's own xfrm — the box is allowed to be looser than the card so it doesn't clip mid-character, but that
+    means fitting text purely to the box's own height can still visibly overflow the card. Find the card and use
+    whichever bottom edge is tighter."""
+    shape_left, shape_top, shape_width = shape.left, shape.top, shape.width
+    shape_right = shape_left + shape_width
+    for cand in layout_shapes:
+        if None in (cand.left, cand.top, cand.width, cand.height):
+            continue
+        if cand.height < PANEL_MIN_HEIGHT_EMU:
+            continue
+        cand_right = cand.left + cand.width
+        if cand.left <= shape_left and cand_right >= shape_right and cand.top <= shape_top <= cand.top + cand.height:
+            return min(shape_top + shape.height, cand.top + cand.height)
+    return shape_top + shape.height
+
+
+def _fit_font_size_pt(shape, lines: list[str], layout_shapes) -> float:
     """Shrink below FONT_PT only as much as needed for all lines to fit the shape, like PowerPoint's "shrink text on overflow" — but computed and baked into the XML directly, since viewers don't reliably recompute normAutofit on their own."""
     tf = shape.text_frame
     available_width = max((shape.width - (tf.margin_left or 0) - (tf.margin_right or 0)) / 12700.0, 1.0)
-    available_height = max((shape.height - (tf.margin_top or 0) - (tf.margin_bottom or 0)) / 12700.0, 1.0)
+    bottom_emu = _panel_bottom_emu(shape, layout_shapes)
+    available_height = max((bottom_emu - shape.top - (tf.margin_top or 0) - (tf.margin_bottom or 0)) / 12700.0, 1.0)
 
     size = FONT_PT
     while size > MIN_FONT_PT:
@@ -70,7 +90,7 @@ def _remove_bullet(p_elem) -> None:
     pPr.insert(insert_index, pPr.makeelement(qn("a:buNone"), {}))
 
 
-def _set_text_box(shape, text: str) -> None:
+def _set_text_box(shape, text: str, layout_shapes) -> None:
     """Replace text in a shape's text frame, preserving first-run formatting."""
     tf = shape.text_frame
 
@@ -97,7 +117,7 @@ def _set_text_box(shape, text: str) -> None:
     run0.text = lines[0]
     if first_run:
         run0.font.bold = first_run.font.bold
-    run0.font.size = Pt(_fit_font_size_pt(shape, lines))
+    run0.font.size = Pt(_fit_font_size_pt(shape, lines, layout_shapes))
 
     first_p_elem = first_para._p
     _remove_bullet(first_p_elem)
@@ -139,23 +159,24 @@ def build_activity_descriptor_pptx(payload: dict) -> tuple[bytes, str]:
 
     prs = Presentation(str(TEMPLATE_PATH))
     slide = prs.slides[0]
+    layout_shapes = list(slide.slide_layout.shapes)
 
     for shape in slide.shapes:
         if not shape.has_text_frame:
             continue
         name = shape.name
         if name == "Text Box 18":
-            _set_text_box(shape, date_str)
+            _set_text_box(shape, date_str, layout_shapes)
         elif name == "Text Box 19":
             text = "\n".join(a for a in activities if a)
-            _set_text_box(shape, text)
+            _set_text_box(shape, text, layout_shapes)
         elif name == "Text Box 20":
             text = "\n".join(s for s in skills if s)
-            _set_text_box(shape, text)
+            _set_text_box(shape, text, layout_shapes)
         elif name == "Text Box 21":
             if links:
                 text = "\n".join(l for l in links if l)
-                _set_text_box(shape, text)
+                _set_text_box(shape, text, layout_shapes)
 
     buf = BytesIO()
     prs.save(buf)
