@@ -24,17 +24,74 @@ CENTER_LABELS = {
     "language_literacy": "Language & Literacy",
 }
 
-# Average character width as a fraction of font size for Calibri/Helvetica
-CHAR_WIDTH_FACTOR = 0.50
-LINE_HEIGHT_FACTOR = 1.35
+LINE_HEIGHT_FACTOR = 1.25
 MIN_FONT_SIZE = 4.0
+PAD_X = 4.0  # left+right widget padding
+PAD_Y = 4.0  # top+bottom widget padding
 
-# All content boxes share one font size (the Small Group / Learning Experiences
-# style, 8pt) so the page looks uniform. Single-line banner fields are excluded:
-# their boxes are too short for the multiline height math and would drag the
-# whole page down; they only shrink if their text overflows the width.
+# Boxes that sit side by side in one row share one font size, so a row always
+# looks uniform — but a short row (Centers) can't starve a tall row (Circle
+# Time) into tiny text with half the box left empty. Single-line banner fields
+# are excluded: their boxes are too short for the multiline height math; they
+# only shrink if their text overflows the width.
 SINGLE_LINE_FIELDS = {"Week", "Class", "Program", "Books"}
-UNIFORM_MAX_SIZE = 8.0
+UNIFORM_MAX_SIZE = 12.0
+
+
+def _row_of(name: str) -> str | None:
+    if name.startswith("Circle Time") and "Routines" not in name:
+        return "circle"
+    if name.startswith("Small Group"):
+        return "sg1" if name.endswith("1") else "sg2"
+    if name in {"Dramatic PlayRow1", "ConstructionRow1", "MusicRow1", "ArtRow1", "WritingRow1",
+                "Manipulative CenterRow1", "Science", "SensoryRow1", "L&L"}:
+        return "centers"
+    if name in SINGLE_LINE_FIELDS:
+        return None
+    return name  # Outdoor Learning etc.: a row of its own
+
+# Standard Helvetica AFM advance widths (1/1000 em) for ASCII — the exact
+# metrics of the /Helv font the fields render with, so wrapping is computed
+# the same way the PDF viewer computes it.
+_HELV_WIDTHS = {
+    " ": 278, "!": 278, '"': 355, "#": 556, "$": 556, "%": 889, "&": 667, "'": 191,
+    "(": 333, ")": 333, "*": 389, "+": 584, ",": 278, "-": 333, ".": 278, "/": 278,
+    "0": 556, "1": 556, "2": 556, "3": 556, "4": 556, "5": 556, "6": 556, "7": 556,
+    "8": 556, "9": 556, ":": 278, ";": 278, "<": 584, "=": 584, ">": 584, "?": 556,
+    "@": 1015, "A": 667, "B": 667, "C": 722, "D": 722, "E": 667, "F": 611, "G": 778,
+    "H": 722, "I": 278, "J": 500, "K": 667, "L": 556, "M": 833, "N": 722, "O": 778,
+    "P": 667, "Q": 778, "R": 722, "S": 667, "T": 611, "U": 722, "V": 667, "W": 944,
+    "X": 667, "Y": 667, "Z": 611, "[": 278, "\\": 278, "]": 278, "^": 469, "_": 556,
+    "`": 333, "a": 556, "b": 556, "c": 500, "d": 556, "e": 556, "f": 278, "g": 556,
+    "h": 556, "i": 222, "j": 222, "k": 500, "l": 222, "m": 833, "n": 556, "o": 556,
+    "p": 556, "q": 556, "r": 333, "s": 500, "t": 278, "u": 556, "v": 500, "w": 722,
+    "x": 500, "y": 500, "z": 500, "{": 334, "|": 260, "}": 334, "~": 584,
+}
+_SPACE_W = 278
+
+
+def _text_units(text: str) -> float:
+    return sum(_HELV_WIDTHS.get(ch, 556) for ch in text)
+
+
+def _wrapped_line_count(text: str, budget_units: float) -> int:
+    """Lines needed to word-wrap text into a line `budget_units` wide (1/1000 em units)."""
+    total = 0
+    for para in str(text).split("\n"):
+        lines = 1
+        cur = 0.0
+        for word in para.split(" "):
+            w = _text_units(word)
+            if cur and cur + _SPACE_W + w > budget_units:
+                lines += 1
+                cur = w
+            else:
+                cur += (_SPACE_W if cur else 0) + w
+            if cur > budget_units:  # overlong word: renderer breaks mid-word
+                lines += int(cur // budget_units)
+                cur = cur % budget_units
+        total += lines
+    return total
 
 
 def _activity_text(plan: dict[str, object], section_name: str, key: str) -> str:
@@ -137,20 +194,16 @@ def _field_map(plan: dict[str, object]) -> dict[str, str]:
 
 
 def _optimal_font_size(text: str, field_width: float, field_height: float, max_size: float) -> float:
-    paragraphs = str(text).split("\n")
-    if not any(paragraphs):
+    if not str(text).strip():
         return max_size
 
-    # Safety margin: reserve 3pt at top and bottom
-    usable_height = max(1.0, field_height - 6.0)
+    usable_width = max(1.0, field_width - PAD_X)
+    usable_height = max(1.0, field_height - PAD_Y)
     lo, hi = MIN_FONT_SIZE, max_size
     for _ in range(12):
         mid = (lo + hi) / 2
-        chars_per_line = max(1, field_width / (CHAR_WIDTH_FACTOR * mid))
-        # Each explicit line wraps on its own; even an empty line takes a row
-        lines_needed = sum(max(1, math.ceil(len(p) / chars_per_line)) for p in paragraphs)
-        height_needed = lines_needed * LINE_HEIGHT_FACTOR * mid
-        if height_needed <= usable_height:
+        lines_needed = _wrapped_line_count(text, usable_width * 1000.0 / mid)
+        if lines_needed * LINE_HEIGHT_FACTOR * mid <= usable_height:
             lo = mid
         else:
             hi = mid
@@ -202,26 +255,29 @@ def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> No
 
     # One shared size for every content box: the largest size (capped at the
     # Small Group style's 8pt) at which the fullest box still fits.
-    uniform_size = UNIFORM_MAX_SIZE
+    row_sizes: dict[str, float] = {}
     for _, name, _, _, width, height in collected:
         text = field_values.get(name)
-        if not text or name in SINGLE_LINE_FIELDS:
+        row = _row_of(name)
+        if not text or row is None:
             continue
-        uniform_size = min(uniform_size, _optimal_font_size(text, width, height, UNIFORM_MAX_SIZE))
+        size = _optimal_font_size(text, width, height, UNIFORM_MAX_SIZE)
+        row_sizes[row] = min(row_sizes.get(row, UNIFORM_MAX_SIZE), size)
 
     # Always /Helv: the template's fields declare Calibri, which pypdf has no
     # width data for — appearance streams then silently fall back to Helvetica
     # while viewers that regenerate use real Calibri, so boxes render in
     # visibly different fonts. Helv is a standard font every renderer agrees on.
     for entry, name, _, current_size, width, height in collected:
-        if name in SINGLE_LINE_FIELDS:
+        row = _row_of(name)
+        if row is None:
             text = field_values.get(name)
             new_size = current_size
             if text:
-                width_fit = math.floor((width - 4.0) / (CHAR_WIDTH_FACTOR * len(text)) * 10) / 10
+                width_fit = math.floor((width - PAD_X) * 1000.0 / _text_units(text) * 10) / 10
                 new_size = max(MIN_FONT_SIZE, min(current_size, width_fit))
         else:
-            new_size = uniform_size
+            new_size = row_sizes.get(row, UNIFORM_MAX_SIZE)
         entry[NameObject("/DA")] = create_string_object(f"/Helv {new_size} Tf 0 g")
 
 
