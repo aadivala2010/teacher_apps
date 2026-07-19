@@ -44,6 +44,10 @@
             <strong>Image Grid PDF</strong>
             <span>Make a 2x2 image PDF</span>
           </button>
+          <button class="app-tab" type="button" data-app-tab="grid-print" aria-selected="false">
+            <strong>Grid Print</strong>
+            <span>Fill a 3x4 photo grid</span>
+          </button>
         </nav>
       </aside>
 
@@ -249,6 +253,33 @@
                 <button id="gridGenerateButton" class="primary-button accent" type="button">Generate 2x2.pdf</button>
                 <p id="gridStatus" class="status-text" role="status" aria-live="polite">Choose a folder or individual images to make a 2x2 PDF.</p>
               </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="gridPrintApp" class="app-view" data-app-view="grid-print" hidden>
+          <div class="page-shell">
+            <header class="hero-band app-hero">
+              <div class="hero-copy">
+                <p class="eyebrow">Grid Print</p>
+                <h1>Fill a 3x4 photo grid and export it as one A4 page</h1>
+                <p class="hero-text">
+                  Click any cell to add a photo. Each cell keeps a 3:2 aspect ratio, so photos fit without
+                  overflowing (leftover space on the sides is fine).
+                </p>
+              </div>
+            </header>
+
+            <section class="grid-print-tool" aria-labelledby="gridPrintToolHeading">
+              <h2 id="gridPrintToolHeading">3x4 Photo Grid</h2>
+              <div id="gridPrintCells" class="grid-print-cells"></div>
+              <div class="action-row">
+                <button id="gridPrintGenerateButton" class="primary-button accent" type="button">Generate PDF</button>
+                <button id="gridPrintClearButton" class="secondary-button" type="button">Clear All</button>
+              </div>
+              <p id="gridPrintStatus" class="status-text" role="status" aria-live="polite">
+                Add up to 12 photos, then generate grid-print.pdf.
+              </p>
             </section>
           </div>
         </section>

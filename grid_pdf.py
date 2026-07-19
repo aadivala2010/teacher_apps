@@ -13,6 +13,12 @@ BACKGROUND = "white"
 MAX_UPLOAD_BYTES = 1_048_576
 MAX_DIMENSION = 1920
 
+PAGE_SIZE_A4 = (2481, 3508)  # 210mm x 297mm at 300dpi
+GRID_COLS = 3
+GRID_ROWS = 4
+GRID_SLOTS = GRID_COLS * GRID_ROWS
+GRID_CELL_ASPECT = 3 / 2  # width:height
+
 
 def compress_image_bytes(content: bytes, max_bytes: int = MAX_UPLOAD_BYTES) -> bytes:
     try:
@@ -104,4 +110,53 @@ def build_grid_pdf(files: list[dict[str, object]]) -> bytes:
 
     output = BytesIO()
     pages[0].save(output, format="PDF", save_all=True, append_images=pages[1:], resolution=300.0)
+    return output.getvalue()
+
+
+def _grid_cell_boxes(
+    page_size: tuple[int, int], margin: int, gap: int, cols: int, rows: int, aspect: float
+) -> list[tuple[int, int, int, int]]:
+    """Largest uniform cols x rows grid of `aspect` (w:h) cells that fits the page, centered
+    on whichever axis has leftover room."""
+    page_width, page_height = page_size
+    avail_width = page_width - 2 * margin
+    avail_height = page_height - 2 * margin
+
+    cell_width = (avail_width - (cols - 1) * gap) / cols
+    cell_height = cell_width / aspect
+    if rows * cell_height + (rows - 1) * gap > avail_height:
+        cell_height = (avail_height - (rows - 1) * gap) / rows
+        cell_width = cell_height * aspect
+
+    total_width = cols * cell_width + (cols - 1) * gap
+    total_height = rows * cell_height + (rows - 1) * gap
+    origin_x = margin + (avail_width - total_width) / 2
+    origin_y = margin + (avail_height - total_height) / 2
+
+    boxes = []
+    for row in range(rows):
+        for col in range(cols):
+            x = origin_x + col * (cell_width + gap)
+            y = origin_y + row * (cell_height + gap)
+            boxes.append((int(x), int(y), int(cell_width), int(cell_height)))
+    return boxes
+
+
+def build_grid_3x4_pdf(slot_files: list[dict[str, object] | None]) -> bytes:
+    if not any(slot_files):
+        raise ValueError("Upload at least one supported image.")
+
+    boxes = _grid_cell_boxes(PAGE_SIZE_A4, MARGIN, GAP, GRID_COLS, GRID_ROWS, GRID_CELL_ASPECT)
+    page = Image.new("RGB", PAGE_SIZE_A4, BACKGROUND)
+    for slot, file in zip(boxes, slot_files):
+        if not file:
+            continue
+        x, y, cell_width, cell_height = slot
+        image = _prepare_image(bytes(file.get("content") or b""), (cell_width, cell_height))
+        x += (cell_width - image.width) // 2
+        y += (cell_height - image.height) // 2
+        page.paste(image, (x, y))
+
+    output = BytesIO()
+    page.save(output, format="PDF", resolution=300.0)
     return output.getvalue()

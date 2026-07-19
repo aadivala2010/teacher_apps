@@ -139,6 +139,12 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
+        if route == "grid-print-pdf":
+            try:
+                self.handle_grid_print_pdf()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
         if route == "book-theme-finder":
             try:
                 self.handle_book_theme_finder()
@@ -262,6 +268,8 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             return "lesson-plan-copier"
         if path.endswith("/grid-pdf") or path.endswith("/grid_pdf"):
             return "grid-pdf"
+        if path.endswith("/grid-print-pdf") or path.endswith("/grid_print_pdf"):
+            return "grid-print-pdf"
         if path.endswith("/planner-save"):
             return "planner-save"
         if path.endswith("/planner-upload-attachment"):
@@ -577,6 +585,27 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/pdf")
         self.send_header("Content-Length", str(len(result)))
         self.send_header("Content-Disposition", 'attachment; filename="2x2.pdf"')
+        self.end_headers()
+        self.wfile.write(result)
+
+    def handle_grid_print_pdf(self) -> None:
+        _, files = self.parse_multipart_body(max_bytes=MAX_UPLOAD_BYTES)
+        slots: list[dict[str, object] | None] = [None] * grid_pdf.GRID_SLOTS
+        for key, value in files.items():
+            if not key.startswith("slot::"):
+                continue
+            try:
+                index = int(key.split("::", 1)[1])
+            except ValueError:
+                continue
+            if 0 <= index < grid_pdf.GRID_SLOTS:
+                value["content"] = grid_pdf.compress_image_bytes(value.get("content") or b"")
+                slots[index] = value
+        result = grid_pdf.build_grid_3x4_pdf(slots)
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(result)))
+        self.send_header("Content-Disposition", 'attachment; filename="grid-print.pdf"')
         self.end_headers()
         self.wfile.write(result)
 

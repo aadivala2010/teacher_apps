@@ -25,6 +25,12 @@ var gridImageInput = document.querySelector("#gridImageInput");
 var gridImageFilesInput = document.querySelector("#gridImageFilesInput");
 var gridGenerateButton = document.querySelector("#gridGenerateButton");
 var gridStatus = document.querySelector("#gridStatus");
+var gridPrintCellsContainer = document.querySelector("#gridPrintCells");
+var gridPrintGenerateButton = document.querySelector("#gridPrintGenerateButton");
+var gridPrintClearButton = document.querySelector("#gridPrintClearButton");
+var gridPrintStatus = document.querySelector("#gridPrintStatus");
+var GRID_PRINT_SLOT_COUNT = 12;
+var gridPrintSlots = new Array(GRID_PRINT_SLOT_COUNT).fill(null);
 
 if (gridImageInput && /iPad|iPhone|iPod/.test(navigator.userAgent || "")) {
   gridImageInput.removeAttribute("webkitdirectory");
@@ -34,6 +40,7 @@ var appTabButtons = document.querySelectorAll("[data-app-tab]");
 var appViews = document.querySelectorAll("[data-app-view]");
 var apiRoutes = {
   gridPdf: "/api/grid-pdf",
+  gridPrintPdf: "/api/grid-print-pdf",
   plannerSave: "/api/planner-save",
   plannerUploadAttachment: "/api/planner-upload-attachment",
   plannerLoad: "/api/planner-load",
@@ -1793,6 +1800,134 @@ async function handleGridGenerate() {
   }
 }
 
+function setGridPrintStatus(message, kind) {
+  if (!gridPrintStatus) {
+    return;
+  }
+  gridPrintStatus.textContent = message;
+  gridPrintStatus.className = "status-text" + (kind ? " " + kind : "");
+}
+
+function renderGridPrintCells() {
+  if (!gridPrintCellsContainer) {
+    return;
+  }
+  gridPrintCellsContainer.innerHTML = "";
+  var i;
+  var cell;
+  var input;
+  var img;
+  var placeholder;
+  for (i = 0; i < GRID_PRINT_SLOT_COUNT; i += 1) {
+    cell = document.createElement("div");
+    cell.className = "grid-print-cell" + (gridPrintSlots[i] ? " filled" : "");
+
+    input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.dataset.slotIndex = String(i);
+    cell.appendChild(input);
+
+    if (gridPrintSlots[i]) {
+      img = document.createElement("img");
+      img.src = URL.createObjectURL(gridPrintSlots[i]);
+      img.alt = "Photo " + (i + 1);
+      cell.appendChild(img);
+    } else {
+      placeholder = document.createElement("span");
+      placeholder.textContent = "+ Add photo";
+      cell.appendChild(placeholder);
+    }
+
+    gridPrintCellsContainer.appendChild(cell);
+  }
+}
+
+function handleGridPrintCellChange(event) {
+  var input = event.target;
+  var file;
+  var index;
+  if (!input || input.type !== "file" || !input.dataset || input.dataset.slotIndex === undefined) {
+    return;
+  }
+  index = Number(input.dataset.slotIndex);
+  file = input.files && input.files[0];
+  if (!file) {
+    return;
+  }
+  if (!isSupportedGridImage(file)) {
+    setGridPrintStatus("That file type isn't supported.", "error");
+    return;
+  }
+  gridPrintSlots[index] = file;
+  renderGridPrintCells();
+}
+
+function handleGridPrintClear() {
+  gridPrintSlots = new Array(GRID_PRINT_SLOT_COUNT).fill(null);
+  renderGridPrintCells();
+  setGridPrintStatus("Add up to 12 photos, then generate grid-print.pdf.");
+}
+
+async function handleGridPrintGenerate() {
+  var formData;
+  var response;
+  var blob;
+  var i;
+  var hasPhoto = gridPrintSlots.some(function (file) {
+    return !!file;
+  });
+
+  if (!hasPhoto) {
+    setGridPrintStatus("Add at least one photo first.", "error");
+    return;
+  }
+
+  gridPrintGenerateButton.disabled = true;
+  try {
+    setGridPrintStatus("Compressing photos...");
+    for (i = 0; i < GRID_PRINT_SLOT_COUNT; i += 1) {
+      if (gridPrintSlots[i]) {
+        gridPrintSlots[i] = await compressImageIfNeeded(gridPrintSlots[i]);
+      }
+    }
+    setGridPrintStatus("Creating grid-print.pdf...");
+    formData = new FormData();
+    for (i = 0; i < GRID_PRINT_SLOT_COUNT; i += 1) {
+      if (gridPrintSlots[i]) {
+        formData.append("slot::" + i, gridPrintSlots[i], gridPrintSlots[i].name);
+      }
+    }
+    response = await fetch(apiRoutes.gridPrintPdf, {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) {
+      throw new Error(await gridErrorMessageFromResponse(response));
+    }
+    blob = await response.blob();
+    downloadBlob(blob, "grid-print.pdf");
+    setGridPrintStatus("grid-print.pdf was created.", "success");
+  } catch (error) {
+    setGridPrintStatus(error.message || "Could not generate the PDF.", "error");
+  } finally {
+    gridPrintGenerateButton.disabled = false;
+  }
+}
+
+function initializeGridPrint() {
+  renderGridPrintCells();
+  if (gridPrintCellsContainer) {
+    gridPrintCellsContainer.addEventListener("change", handleGridPrintCellChange);
+  }
+  if (gridPrintGenerateButton) {
+    gridPrintGenerateButton.addEventListener("click", handleGridPrintGenerate);
+  }
+  if (gridPrintClearButton) {
+    gridPrintClearButton.addEventListener("click", handleGridPrintClear);
+  }
+}
+
 async function handleConfirmDatabaseDownload() {
   var plans = selectedDatabasePlans();
   var preparedPlans;
@@ -2512,6 +2647,8 @@ function initializePlanner() {
   if (gridGenerateButton) {
     gridGenerateButton.addEventListener("click", handleGridGenerate);
   }
+
+  initializeGridPrint();
 
   if (authButton) {
     authButton.addEventListener("click", openAuthModal);
