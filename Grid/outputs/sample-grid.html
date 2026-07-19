@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2x2 Image Grid - sample-images</title>
+  <style>
+    :root {
+      --page-width: 8.5in;
+      --page-height: 11in;
+      --page-padding: 0.4in;
+      --page-gap: 0.18in;
+      --page-bg: #ffffff;
+      --surface: #f5f1eb;
+      --border: #e6ddd2;
+      --text: #2c241d;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: linear-gradient(180deg, #efe7dd 0%, #f8f4ef 100%);
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+    }
+
+    .document {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .page {
+      width: var(--page-width);
+      min-height: var(--page-height);
+      padding: var(--page-padding);
+      background: var(--page-bg);
+      box-shadow: 0 18px 50px rgba(70, 48, 22, 0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      page-break-after: always;
+    }
+
+    .grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--page-gap);
+      align-content: start;
+    }
+
+    .image-card {
+      margin: 0;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      overflow: hidden;
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .image-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #fff;
+      display: block;
+    }
+
+    .page-number {
+      text-align: right;
+      font-size: 12px;
+      color: #6d5b48;
+    }
+
+    @page {
+      size: letter portrait;
+      margin: 0.35in;
+    }
+
+    @media print {
+      body {
+        padding: 0;
+        background: #fff;
+      }
+
+      .document {
+        gap: 0;
+      }
+
+      .page {
+        box-shadow: none;
+        width: auto;
+        min-height: auto;
+        padding: 0;
+        break-after: page;
+      }
+    }
+
+    @media (max-width: 900px) {
+      body {
+        padding: 12px;
+      }
+
+      .page {
+        width: 100%;
+        min-height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="document">
+    <section class="page">
+              <div class="grid grid-4">
+                <figure class="image-card">
+                  <img src="file:///C:/Users/aadiv/Documents/Codex/2026-06-03/make-an-app-in-which-i/work/sample-images/image1.jpg" alt="image1.jpg">
+                </figure> <figure class="image-card">
+                  <img src="file:///C:/Users/aadiv/Documents/Codex/2026-06-03/make-an-app-in-which-i/work/sample-images/image2.jpg" alt="image2.jpg">
+                </figure> <figure class="image-card">
+                  <img src="file:///C:/Users/aadiv/Documents/Codex/2026-06-03/make-an-app-in-which-i/work/sample-images/image3.jpg" alt="image3.jpg">
+                </figure> <figure class="image-card">
+                  <img src="file:///C:/Users/aadiv/Documents/Codex/2026-06-03/make-an-app-in-which-i/work/sample-images/image4.jpg" alt="image4.jpg">
+                </figure>
+              </div>
+              <div class="page-number">Page 1 of 2</div>
+            </section> <section class="page">
+              <div class="grid grid-1">
+                <figure class="image-card">
+                  <img src="file:///C:/Users/aadiv/Documents/Codex/2026-06-03/make-an-app-in-which-i/work/sample-images/image5.jpg" alt="image5.jpg">
+                </figure>
+              </div>
+              <div class="page-number">Page 2 of 2</div>
+            </section>
+  </main>
+</body>
+</html>
