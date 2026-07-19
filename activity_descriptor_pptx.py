@@ -6,6 +6,7 @@ from pathlib import Path
 
 from lxml import etree
 from pptx import Presentation
+from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.oxml.ns import qn
 from pptx.util import Pt
 
@@ -48,6 +49,7 @@ def _remove_bullet(p_elem) -> None:
 def _set_text_box(shape, text: str) -> None:
     """Replace text in a shape's text frame, preserving first-run formatting."""
     tf = shape.text_frame
+    tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
 
     # Grab formatting from the first run of the first paragraph if it exists
     first_run = None
