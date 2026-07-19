@@ -19,7 +19,7 @@ import blob_storage
 import grid_pdf
 import table_app
 import supabase_sync
-import activity_descriptor_pptx
+import activity_descriptor_pdf
 from web_app import generate_preschool_books
 
 
@@ -353,9 +353,9 @@ class handler(BaseHTTPRequestHandler):
 
     def handle_activity_descriptor_export(self) -> None:
         payload = self.read_json_body()
-        result, filename = activity_descriptor_pptx.build_activity_descriptor_pptx(payload)
+        result, filename = activity_descriptor_pdf.build_activity_descriptor_pdf(payload)
         self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+        self.send_header("Content-Type", "application/pdf")
         self.send_header("Content-Length", str(len(result)))
         self.set_attachment_header(filename)
         self.end_headers()

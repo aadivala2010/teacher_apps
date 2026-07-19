@@ -74,24 +74,44 @@ def _text_units(text: str) -> float:
     return sum(_HELV_WIDTHS.get(ch, 556) for ch in text)
 
 
+def _split_long_word(word: str, budget_units: float) -> list[str]:
+    """Break a word wider than the whole line into chunks that fit, like the renderer does."""
+    chunks: list[str] = []
+    cur, cur_w = "", 0.0
+    for ch in word:
+        w = _HELV_WIDTHS.get(ch, 556)
+        if cur and cur_w + w > budget_units:
+            chunks.append(cur)
+            cur, cur_w = ch, w
+        else:
+            cur += ch
+            cur_w += w
+    chunks.append(cur)
+    return chunks
+
+
+def _wrap_to_lines(text: str, budget_units: float) -> list[str]:
+    """Word-wrap text into lines at most `budget_units` wide (1/1000 em units)."""
+    lines: list[str] = []
+    for para in str(text).split("\n"):
+        words = [chunk for word in para.split(" ") for chunk in _split_long_word(word, budget_units)]
+        cur_words: list[str] = []
+        cur_w = 0.0
+        for word in words:
+            w = _text_units(word)
+            if cur_words and cur_w + _SPACE_W + w > budget_units:
+                lines.append(" ".join(cur_words))
+                cur_words, cur_w = [word], w
+            else:
+                cur_words.append(word)
+                cur_w += (_SPACE_W if cur_w else 0) + w
+        lines.append(" ".join(cur_words))
+    return lines
+
+
 def _wrapped_line_count(text: str, budget_units: float) -> int:
     """Lines needed to word-wrap text into a line `budget_units` wide (1/1000 em units)."""
-    total = 0
-    for para in str(text).split("\n"):
-        lines = 1
-        cur = 0.0
-        for word in para.split(" "):
-            w = _text_units(word)
-            if cur and cur + _SPACE_W + w > budget_units:
-                lines += 1
-                cur = w
-            else:
-                cur += (_SPACE_W if cur else 0) + w
-            if cur > budget_units:  # overlong word: renderer breaks mid-word
-                lines += int(cur // budget_units)
-                cur = cur % budget_units
-        total += lines
-    return total
+    return len(_wrap_to_lines(text, budget_units))
 
 
 def _activity_text(plan: dict[str, object], section_name: str, key: str) -> str:
@@ -248,7 +268,7 @@ def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> No
             collected.append((entry, name, m.group(1), float(m.group(2)), width, height))
 
     try:
-        from pypdf.generic import NameObject, create_string_object
+        from pypdf.generic import NameObject, NumberObject, create_string_object
     except ImportError:
         return
     _walk_fields(field_entries)
@@ -270,14 +290,21 @@ def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> No
     # visibly different fonts. Helv is a standard font every renderer agrees on.
     for entry, name, _, current_size, width, height in collected:
         row = _row_of(name)
+        text = field_values.get(name)
         if row is None:
-            text = field_values.get(name)
             new_size = current_size
             if text:
                 width_fit = math.floor((width - PAD_X) * 1000.0 / _text_units(text) * 10) / 10
                 new_size = max(MIN_FONT_SIZE, min(current_size, width_fit))
         else:
             new_size = row_sizes.get(row, UNIFORM_MAX_SIZE)
+            # Bake explicit newlines and the multiline flag into the field, because
+            # printers/browsers use the stored appearance stream, which never
+            # word-wraps on its own — relying on the viewer to re-wrap is what made
+            # printed plans show one long clipped line.
+            entry[NameObject("/Ff")] = NumberObject(int(entry.get("/Ff", 0)) | 4096)
+            if text:
+                field_values[name] = "\n".join(_wrap_to_lines(text, (width - PAD_X) * 1000.0 / new_size))
         entry[NameObject("/DA")] = create_string_object(f"/Helv {new_size} Tf 0 g")
 
 
