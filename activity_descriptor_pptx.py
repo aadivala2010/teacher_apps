@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -26,7 +27,7 @@ FONT_PT = 12.0
 MIN_FONT_PT = 8.0
 LINE_HEIGHT_FACTOR = 1.1
 LINE_SPACING_AFTER_PT = 3.0
-AVG_CHAR_WIDTH_FACTOR = 0.55
+AVG_CHAR_WIDTH_FACTOR = 0.40  # measured avg advance width / size for the template's font (Tw Cen MT); 0.55 was an untuned guess that shrank text well below what actually fits
 PANEL_MIN_HEIGHT_EMU = 900000  # filters out small decorative rectangles, keeps the big background cards
 
 
@@ -140,19 +141,25 @@ def _set_text_box(shape, text: str, layout_shapes) -> None:
         parent.append(new_p)
 
 
-def _format_date_mm_dd_yyyy(date_str: str) -> str:
+def _ordinal_suffix(day: int) -> str:
+    if 11 <= day % 100 <= 13:
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+
+
+def _format_date_long(date_str: str) -> str:
     if not date_str:
         return ""
     try:
-        parts = date_str.split("-")
-        return f"{parts[1]}/{parts[2]}/{parts[0]}"
-    except (IndexError, ValueError):
+        date = datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
         return date_str
+    return f"{date.strftime('%b')} {date.day}{_ordinal_suffix(date.day)}, {date.year}"
 
 
 def build_activity_descriptor_pptx(payload: dict) -> tuple[bytes, str]:
     raw_date = str(payload.get("date", ""))
-    date_str = _format_date_mm_dd_yyyy(raw_date)
+    date_str = _format_date_long(raw_date)
     activities = payload.get("activities", [])
     skills = payload.get("skills", [])
     links = payload.get("links", [])
