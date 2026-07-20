@@ -420,6 +420,24 @@ textarea:focus-visible,
   color: #ffffff;
 }
 
+/* The Load Saved Week control is a <select> dressed as a button */
+select.primary-button {
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  max-width: 240px;
+  text-overflow: ellipsis;
+}
+
+select.primary-button option {
+  background: #ffffff;
+  color: #1f2437;
+  font-weight: 400;
+}
+
 .primary-button:hover:not(:disabled) {
   background: var(--indigo-dark);
   border-color: var(--indigo-dark);

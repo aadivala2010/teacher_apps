@@ -14,7 +14,6 @@ var dailyActivities = document.querySelector("#dailyActivities");
 var outdoorGrid = document.querySelector("#outdoorGrid");
 var centersGrid = document.querySelector("#centersGrid");
 var savePlanButton = document.querySelector("#savePlanButton");
-var loadPlanButton = document.querySelector("#loadPlanButton");
 var applyCurrentTemplateButton = document.querySelector("#applyCurrentTemplateButton");
 var downloadDatabaseButton = document.querySelector("#downloadDatabaseButton");
 var databaseModal = document.querySelector("#databaseModal");
@@ -796,9 +795,8 @@ async function refreshSavedWeeksDropdown() {
   (await listPlansFromCloud()).forEach(collect);
 
   var plans = sortedPlansOldestFirst(Object.keys(byKey).map(function (key) { return byKey[key]; })).reverse();
-  var previousValue = savedWeeksSelect.value;
   savedWeeksSelect.innerHTML = "";
-  savedWeeksSelect.appendChild(option("Choose a saved week...", ""));
+  savedWeeksSelect.appendChild(option("Load Saved Week", ""));
   plans.forEach(function (plan) {
     var label = databasePlanLabel(plan);
     if (plan.theme) {
@@ -806,10 +804,7 @@ async function refreshSavedWeeksDropdown() {
     }
     savedWeeksSelect.appendChild(option(label, plannerStorageKey(plan.year, plan.month, plan.weekNumber)));
   });
-  savedWeeksSelect.value = previousValue;
-  if (savedWeeksSelect.selectedIndex < 0) {
-    savedWeeksSelect.value = "";
-  }
+  savedWeeksSelect.value = "";
 }
 
 async function handleSavedWeekPicked() {
@@ -825,6 +820,7 @@ async function handleSavedWeekPicked() {
   monthSelect.value = parts[1];
   renderWeekOptions();
   weekSelect.value = parts[2];
+  savedWeeksSelect.value = "";
   await handleSelectedWeekChanged();
 }
 
@@ -2141,31 +2137,6 @@ async function handleSavePlan() {
   }
 }
 
-async function handleLoadPlan() {
-  if (!confirmDiscardChanges(plannerDirty)) {
-    return;
-  }
-  loadPlanButton.disabled = true;
-  setPlannerStatus("Loading the saved week...");
-  try {
-    var result = await loadSelectedWeekIntoForm();
-    if (result === "stale") {
-      return;
-    }
-    plannerDirty = false;
-    syncPreviousWeekSelectors();
-    if (!result) {
-      setPlannerStatus("No saved week was found on this device for this month and week.");
-      return;
-    }
-    setPlannerStatus("Saved week loaded.", "success");
-  } catch (error) {
-    setPlannerStatus(error.message || "Could not load the saved week.", "error");
-  } finally {
-    loadPlanButton.disabled = false;
-  }
-}
-
 function selectedWeekLookup() {
   return {
     year: selectedYear(),
@@ -2234,12 +2205,6 @@ async function loadSelectedWeekIntoForm() {
 
 async function handleSelectedWeekChanged() {
   renderWeekDays();
-  if (savedWeeksSelect) {
-    savedWeeksSelect.value = plannerStorageKey(selectedYear(), Number(monthSelect.value), Number(weekSelect.value));
-    if (savedWeeksSelect.selectedIndex < 0) {
-      savedWeeksSelect.value = "";
-    }
-  }
   setPlannerStatus("Loading selected week...");
   try {
     var result = await loadSelectedWeekIntoForm();
@@ -2809,7 +2774,6 @@ function initializePlanner() {
   }
   refreshSavedWeeksDropdown();
   savePlanButton.addEventListener("click", handleSavePlan);
-  loadPlanButton.addEventListener("click", handleLoadPlan);
   applyCurrentTemplateButton.addEventListener("click", handleApplyCurrentTemplate);
   downloadDatabaseButton.addEventListener("click", handleDownloadDatabase);
   closeDatabaseModalButton.addEventListener("click", closeDatabaseModal);
