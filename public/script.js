@@ -1,6 +1,7 @@
 var yearSelect = document.querySelector("#yearSelect");
 var monthSelect = document.querySelector("#monthSelect");
 var weekSelect = document.querySelector("#weekSelect");
+var savedWeeksSelect = document.querySelector("#savedWeeksSelect");
 var classInput = document.querySelector("#classInput");
 var programInput = document.querySelector("#programInput");
 var themeInput = document.querySelector("#themeInput");
@@ -747,11 +748,84 @@ async function syncAllLocalToCloud() {
     setPlannerStatus("Cloud sync completed with some issues.", "success");
   } finally {
     isSyncing = false;
+    refreshSavedWeeksDropdown();
   }
 }
 
 function plannerStorageKey(year, month, weekNumber) {
   return String(year) + "-" + String(month) + "-" + String(weekNumber);
+}
+
+async function listPlansFromCloud() {
+  await ensureFreshToken();
+  if (!authToken || !authUser) {
+    return [];
+  }
+  try {
+    var response = await fetch(apiRoutes.syncList, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken },
+      body: "{}",
+    });
+    var data = await response.json();
+    if (response.ok && data.plans) {
+      return data.plans;
+    }
+  } catch (e) {
+    // Cloud list failed silently - local list still works
+  }
+  return [];
+}
+
+// Fill the Saved Weeks dropdown with every saved week (local + cloud), newest first.
+async function refreshSavedWeeksDropdown() {
+  if (!savedWeeksSelect) {
+    return;
+  }
+  var byKey = {};
+  function collect(plan) {
+    if (plan && plan.year && plan.month && plan.weekNumber) {
+      byKey[plannerStorageKey(plan.year, plan.month, plan.weekNumber)] = plan;
+    }
+  }
+  try {
+    (await loadAllPlansFromIndexedDb()).forEach(collect);
+  } catch (e) {
+    // No local database yet
+  }
+  (await listPlansFromCloud()).forEach(collect);
+
+  var plans = sortedPlansOldestFirst(Object.keys(byKey).map(function (key) { return byKey[key]; })).reverse();
+  var previousValue = savedWeeksSelect.value;
+  savedWeeksSelect.innerHTML = "";
+  savedWeeksSelect.appendChild(option("Choose a saved week...", ""));
+  plans.forEach(function (plan) {
+    var label = databasePlanLabel(plan);
+    if (plan.theme) {
+      label += " - " + plan.theme;
+    }
+    savedWeeksSelect.appendChild(option(label, plannerStorageKey(plan.year, plan.month, plan.weekNumber)));
+  });
+  savedWeeksSelect.value = previousValue;
+  if (savedWeeksSelect.selectedIndex < 0) {
+    savedWeeksSelect.value = "";
+  }
+}
+
+async function handleSavedWeekPicked() {
+  var key = savedWeeksSelect.value;
+  if (!key) {
+    return;
+  }
+  if (!confirmDiscardChanges(plannerDirty, function () { savedWeeksSelect.value = ""; })) {
+    return;
+  }
+  var parts = key.split("-");
+  yearSelect.value = parts[0];
+  monthSelect.value = parts[1];
+  renderWeekOptions();
+  weekSelect.value = parts[2];
+  await handleSelectedWeekChanged();
 }
 
 function option(label, value) {
@@ -2059,6 +2133,7 @@ async function handleSavePlan() {
     cloudResult = await syncPlanToCloud(record);
     plannerDirty = false;
     setPlannerStatus(savedWeekMessage(cloudResult), "success");
+    refreshSavedWeeksDropdown();
   } catch (error) {
     setPlannerStatus(error.message || "Could not save the planner.", "error");
   } finally {
@@ -2159,6 +2234,12 @@ async function loadSelectedWeekIntoForm() {
 
 async function handleSelectedWeekChanged() {
   renderWeekDays();
+  if (savedWeeksSelect) {
+    savedWeeksSelect.value = plannerStorageKey(selectedYear(), Number(monthSelect.value), Number(weekSelect.value));
+    if (savedWeeksSelect.selectedIndex < 0) {
+      savedWeeksSelect.value = "";
+    }
+  }
   setPlannerStatus("Loading selected week...");
   try {
     var result = await loadSelectedWeekIntoForm();
@@ -2723,6 +2804,10 @@ function initializePlanner() {
     }
     handleSelectedWeekChanged();
   });
+  if (savedWeeksSelect) {
+    savedWeeksSelect.addEventListener("change", handleSavedWeekPicked);
+  }
+  refreshSavedWeeksDropdown();
   savePlanButton.addEventListener("click", handleSavePlan);
   loadPlanButton.addEventListener("click", handleLoadPlan);
   applyCurrentTemplateButton.addEventListener("click", handleApplyCurrentTemplate);
