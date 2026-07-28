@@ -1980,7 +1980,8 @@ async function handleGridPrintGenerate() {
     setGridPrintStatus("Compressing photos...");
     for (i = 0; i < GRID_PRINT_SLOT_COUNT; i += 1) {
       if (gridPrintSlots[i]) {
-        gridPrintSlots[i] = await compressImageIfNeeded(gridPrintSlots[i]);
+        // 12 slots must fit Vercel's 4.5MB request limit, so budget ~300KB each.
+        gridPrintSlots[i] = await compressImageIfNeeded(gridPrintSlots[i], 300 * 1024);
       }
     }
     setGridPrintStatus("Creating grid-print.pdf...");

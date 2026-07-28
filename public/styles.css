@@ -505,7 +505,7 @@ select.primary-button option {
   display: flex;
   align-items: center;
   justify-content: center;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 13 / 14; /* matches the printed A4 cell */
   border: 1px dashed var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);

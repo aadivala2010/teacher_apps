@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from io import BytesIO
 
-from PIL import Image, ImageOps, ImageSequence
+from PIL import Image, ImageDraw, ImageOps, ImageSequence
 
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tif", ".tiff"}
@@ -17,7 +17,10 @@ PAGE_SIZE_A4 = (2481, 3508)  # 210mm x 297mm at 300dpi
 GRID_COLS = 3
 GRID_ROWS = 4
 GRID_SLOTS = GRID_COLS * GRID_ROWS
-GRID_CELL_ASPECT = 3 / 2  # width:height
+GRID_DPI = 200  # 200dpi keeps the PDF under Vercel's 4.5MB response limit
+GRID_PAGE_SIZE = (1654, 2339)  # 210mm x 297mm at 200dpi
+GRID_MARGIN = 63  # ~8mm
+GRID_BORDER = 2
 
 TWO_PER_PAGE_MARGIN = 60
 TWO_PER_PAGE_GAP = 9  # ~3 CSS px (96dpi) scaled to this canvas's 300dpi
@@ -155,50 +158,38 @@ def build_two_per_page_pdf(files: list[dict[str, object]], stacked: bool) -> byt
     return output.getvalue()
 
 
-def _grid_cell_boxes(
-    page_size: tuple[int, int], margin: int, gap: int, cols: int, rows: int, aspect: float
-) -> list[tuple[int, int, int, int]]:
-    """Largest uniform cols x rows grid of `aspect` (w:h) cells that fits the page, centered
-    on whichever axis has leftover room."""
-    page_width, page_height = page_size
-    avail_width = page_width - 2 * margin
-    avail_height = page_height - 2 * margin
-
-    cell_width = (avail_width - (cols - 1) * gap) / cols
-    cell_height = cell_width / aspect
-    if rows * cell_height + (rows - 1) * gap > avail_height:
-        cell_height = (avail_height - (rows - 1) * gap) / rows
-        cell_width = cell_height * aspect
-
-    total_width = cols * cell_width + (cols - 1) * gap
-    total_height = rows * cell_height + (rows - 1) * gap
-    origin_x = margin + (avail_width - total_width) / 2
-    origin_y = margin + (avail_height - total_height) / 2
-
-    boxes = []
-    for row in range(rows):
-        for col in range(cols):
-            x = origin_x + col * (cell_width + gap)
-            y = origin_y + row * (cell_height + gap)
-            boxes.append((int(x), int(y), int(cell_width), int(cell_height)))
-    return boxes
-
-
 def build_grid_3x4_pdf(slot_files: list[dict[str, object] | None]) -> bytes:
+    """One A4 portrait page: 3 columns x 4 rows of bordered cells filling the page,
+    each photo scaled to fit inside its own cell."""
     if not any(slot_files):
         raise ValueError("Upload at least one supported image.")
 
-    boxes = _grid_cell_boxes(PAGE_SIZE_A4, MARGIN, GAP, GRID_COLS, GRID_ROWS, GRID_CELL_ASPECT)
-    page = Image.new("RGB", PAGE_SIZE_A4, BACKGROUND)
-    for slot, file in zip(boxes, slot_files):
+    slots = (list(slot_files) + [None] * GRID_SLOTS)[:GRID_SLOTS]
+    page_width, page_height = GRID_PAGE_SIZE
+    cell_width = (page_width - 2 * GRID_MARGIN) / GRID_COLS
+    cell_height = (page_height - 2 * GRID_MARGIN) / GRID_ROWS
+
+    page = Image.new("RGB", GRID_PAGE_SIZE, BACKGROUND)
+    draw = ImageDraw.Draw(page)
+    for index, file in enumerate(slots):
+        col, row = index % GRID_COLS, index // GRID_COLS
+        left = int(GRID_MARGIN + col * cell_width)
+        top = int(GRID_MARGIN + row * cell_height)
+        right = int(GRID_MARGIN + (col + 1) * cell_width)
+        bottom = int(GRID_MARGIN + (row + 1) * cell_height)
+        draw.rectangle((left, top, right, bottom), outline="black", width=GRID_BORDER)
         if not file:
             continue
-        x, y, cell_width, cell_height = slot
-        image = _prepare_image(bytes(file.get("content") or b""), (cell_width, cell_height))
-        x += (cell_width - image.width) // 2
-        y += (cell_height - image.height) // 2
-        page.paste(image, (x, y))
+        inner = (right - left - 2 * GRID_BORDER, bottom - top - 2 * GRID_BORDER)
+        image = _prepare_image(bytes(file.get("content") or b""), inner)
+        page.paste(
+            image,
+            (
+                left + GRID_BORDER + (inner[0] - image.width) // 2,
+                top + GRID_BORDER + (inner[1] - image.height) // 2,
+            ),
+        )
 
     output = BytesIO()
-    page.save(output, format="PDF", resolution=300.0)
+    page.save(output, format="PDF", resolution=float(GRID_DPI), quality=80)
     return output.getvalue()
