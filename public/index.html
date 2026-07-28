@@ -11,27 +11,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=10" />
+    <link rel="stylesheet" href="styles.css?v=11" />
   </head>
   <body>
     <div class="app-frame">
       <aside class="app-sidebar" aria-label="Teacher app navigation">
         <div class="sidebar-brand">
-          <p class="eyebrow">Teacher Apps</p>
-          <h1>Tools</h1>
-          <p>Choose one app at a time so the workspace stays clean.</p>
-        </div>
-        <div class="sidebar-auth" id="sidebarAuth">
-          <button id="authButton" class="auth-button" type="button">Sign In</button>
-          <div id="authUserInfo" class="auth-user-info" hidden>
-            <span id="authUserEmail" class="auth-email"></span>
-            <button id="authSignOutButton" class="auth-signout-button" type="button">Sign Out</button>
-          </div>
+          <span class="brand-mark" aria-hidden="true">TA</span>
+          <span class="brand-name">Teacher Apps<em>Classroom toolkit</em></span>
         </div>
         <nav class="sidebar-nav" aria-label="Available apps">
+          <p class="nav-label">Apps</p>
           <button class="app-tab active" type="button" data-app-tab="planner" aria-selected="true">
             <strong>Weekly Planner</strong>
             <span>Save weeks and fill templates</span>
@@ -49,6 +42,13 @@
             <span>Fill a 3x4 photo grid</span>
           </button>
         </nav>
+        <div class="sidebar-auth" id="sidebarAuth">
+          <button id="authButton" class="auth-button" type="button">Sign In</button>
+          <div id="authUserInfo" class="auth-user-info" hidden>
+            <span id="authUserEmail" class="auth-email"></span>
+            <button id="authSignOutButton" class="auth-signout-button" type="button">Sign Out</button>
+          </div>
+        </div>
       </aside>
 
       <div class="app-content">
@@ -280,8 +280,8 @@
                 <p class="eyebrow">Grid Print</p>
                 <h1>Fill a 3x4 photo grid and export it as one A4 page</h1>
                 <p class="hero-text">
-                  Click any cell to add a photo. Each cell keeps a 3:2 aspect ratio, so photos fit without
-                  overflowing (leftover space on the sides is fine).
+                  Click any cell to add a photo. Each cell matches the printed A4 cell exactly, so every
+                  photo fits inside its own box without overflowing.
                 </p>
               </div>
             </header>
