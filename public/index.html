@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Teacher Apps — Classroom toolkit</title>
+    <title>Teacher Weekly Planner</title>
     <meta
       name="description"
       content="Plan circle time, small groups, centers, outdoor learning, templates, and attachments in one weekly teacher planner."
@@ -11,408 +11,307 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=12" />
+    <link rel="stylesheet" href="styles.css?v=11" />
   </head>
   <body>
     <div class="app-frame">
       <aside class="app-sidebar" aria-label="Teacher app navigation">
         <div class="sidebar-brand">
           <span class="brand-mark" aria-hidden="true">TA</span>
-          <span class="brand-name">
-            Teacher Apps
-            <em>Classroom toolkit</em>
-          </span>
+          <span class="brand-name">Teacher Apps<em>Classroom toolkit</em></span>
         </div>
-
         <nav class="sidebar-nav" aria-label="Available apps">
-          <p class="nav-label">Workspace</p>
-
+          <p class="nav-label">Apps</p>
           <button class="app-tab active" type="button" data-app-tab="planner" aria-selected="true">
-            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-              <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
-              <path d="M3 9.5h18M8 3v3M16 3v3M7.5 13.5h3M7.5 17h3M14 13.5h2.5" />
-            </svg>
             <strong>Weekly Planner</strong>
             <span>Save weeks and fill templates</span>
           </button>
-
           <button class="app-tab" type="button" data-app-tab="activity-descriptor" aria-selected="false">
-            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-              <path d="M6 3.25h7.25L19 9v11.75H6z" />
-              <path d="M13 3.25V9h6" />
-              <path d="M9 12.75h7M9 16h7M9 19h4" />
-            </svg>
             <strong>Activity Descriptor</strong>
             <span>Create activity descriptions</span>
           </button>
-
           <button class="app-tab" type="button" data-app-tab="grid" aria-selected="false">
-            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-              <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
-              <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
-              <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
-              <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
-            </svg>
             <strong>Image Grid PDF</strong>
             <span>Make a 2x2 image PDF</span>
           </button>
-
           <button class="app-tab" type="button" data-app-tab="grid-print" aria-selected="false">
-            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-              <rect x="4" y="2.75" width="16" height="18.5" rx="2" />
-              <path d="M4 7.375h16M4 12h16M4 16.625h16M9.333 2.75v18.5M14.667 2.75v18.5" />
-            </svg>
             <strong>Grid Print</strong>
             <span>Fill a 3x4 photo grid</span>
           </button>
         </nav>
-
         <div class="sidebar-auth" id="sidebarAuth">
-          <button id="authButton" class="auth-button" type="button">Sign in</button>
+          <button id="authButton" class="auth-button" type="button">Sign In</button>
           <div id="authUserInfo" class="auth-user-info" hidden>
-            <span class="auth-avatar" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-                <circle cx="12" cy="8.5" r="3.75" />
-                <path d="M4.5 20.5c1.4-3.6 4.2-5.4 7.5-5.4s6.1 1.8 7.5 5.4" />
-              </svg>
-            </span>
             <span id="authUserEmail" class="auth-email"></span>
-            <button id="authSignOutButton" class="auth-signout-button" type="button" aria-label="Sign out">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                <path d="M14.5 8V5.75A1.75 1.75 0 0 0 12.75 4H6.25A1.75 1.75 0 0 0 4.5 5.75v12.5A1.75 1.75 0 0 0 6.25 20h6.5a1.75 1.75 0 0 0 1.75-1.75V16" />
-                <path d="M10.5 12h9m0 0-2.75-2.75M19.5 12l-2.75 2.75" />
-              </svg>
-            </button>
+            <button id="authSignOutButton" class="auth-signout-button" type="button">Sign Out</button>
           </div>
         </div>
       </aside>
 
       <div class="app-content">
-        <!-- ============================ WEEKLY PLANNER ============================ -->
         <section id="plannerApp" class="app-view active" data-app-view="planner">
-          <header class="view-header">
-            <div class="view-heading">
-              <h1>Weekly Planner</h1>
-              <p class="view-subtitle">Plan and publish one teaching week at a time</p>
-            </div>
-            <span class="view-pill"><span class="view-pill-dot" aria-hidden="true"></span>Saves to database</span>
-          </header>
-
-          <div class="context-bar" aria-label="Working context">
-            <div class="context-item">
-              <span class="context-key">Year</span>
-              <span class="context-value" id="currentYearLabel"></span>
-            </div>
-            <div class="context-item">
-              <span class="context-key">Week dates</span>
-              <span class="context-value" id="selectedWeekRange">Choose month and week</span>
-            </div>
-          </div>
-
-          <div class="work-area">
-            <section class="panel" aria-labelledby="plannerDetailsHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="plannerDetailsHeading">Week details</h2>
-                <p class="panel-hint">Applied to every exported template</p>
+          <div class="page-shell">
+            <header class="hero-band">
+              <div class="hero-copy">
+                <p class="eyebrow">Teacher Planner</p>
+                <h1>Weekly lesson planning with saved templates and attachments</h1>
+                <p class="hero-text">
+                  Build one complete week, save it to the database, reuse it later, and keep supporting files attached to each activity.
+                </p>
               </div>
-              <div class="panel-body">
-                <div class="control-grid">
-                  <label class="field">
-                    <span>Year</span>
-                    <select id="yearSelect" name="year"></select>
-                  </label>
-
-                  <label class="field">
-                    <span>Month</span>
-                    <select id="monthSelect" name="month"></select>
-                  </label>
-
-                  <label class="field">
-                    <span>Week Number</span>
-                    <select id="weekSelect" name="weekNumber"></select>
-                  </label>
-
-                  <label class="field">
-                    <span>Class</span>
-                    <input id="classInput" name="className" type="text" maxlength="120" autocomplete="off" />
-                  </label>
-
-                  <label class="field">
-                    <span>Program</span>
-                    <input id="programInput" name="programName" type="text" maxlength="120" autocomplete="off" />
-                  </label>
-
-                  <label class="field">
-                    <span>Theme</span>
-                    <input id="themeInput" name="theme" type="text" maxlength="120" autocomplete="off" />
-                  </label>
-
-                  <label class="field field-wide">
-                    <span>Books</span>
-                    <textarea id="booksInput" name="books" rows="2"></textarea>
-                  </label>
+              <div class="hero-meta">
+                <div class="meta-chip">
+                  <span>Year</span>
+                  <strong id="currentYearLabel"></strong>
+                </div>
+                <div class="meta-chip">
+                  <span>Week Dates</span>
+                  <strong id="selectedWeekRange">Choose month and week</strong>
                 </div>
               </div>
-            </section>
+            </header>
 
-            <section class="panel" aria-labelledby="workWeekHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="workWeekHeading">Work week</h2>
-              </div>
-              <div class="panel-body">
-                <div id="weekDays" class="week-days"></div>
-              </div>
-            </section>
+            <main class="planner-layout">
+        <section class="control-band" aria-label="Planner controls">
+          <div class="control-grid">
+            <label class="field">
+              <span>Year</span>
+              <select id="yearSelect" name="year"></select>
+            </label>
 
-            <section class="panel" aria-labelledby="weeklyActivitiesHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="weeklyActivitiesHeading">Daily Activities</h2>
-                <p class="panel-hint">Circle time and two small groups per day</p>
-              </div>
-              <div class="panel-body panel-body-flush">
-                <div id="dailyActivities" class="daily-activities"></div>
-              </div>
-            </section>
+            <label class="field">
+              <span>Month</span>
+              <select id="monthSelect" name="month"></select>
+            </label>
 
-            <section class="panel" aria-labelledby="outdoorHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="outdoorHeading">Outdoor Learning Experiences</h2>
-              </div>
-              <div class="panel-body">
-                <div id="outdoorGrid" class="single-grid"></div>
-              </div>
-            </section>
+            <label class="field">
+              <span>Week Number</span>
+              <select id="weekSelect" name="weekNumber"></select>
+            </label>
 
-            <section class="panel" aria-labelledby="centersHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="centersHeading">Centers</h2>
-              </div>
-              <div class="panel-body">
-                <div id="centersGrid" class="center-grid"></div>
-              </div>
-            </section>
+            <label class="field">
+              <span>Class</span>
+              <input id="classInput" name="className" type="text" maxlength="120" autocomplete="off" />
+            </label>
+
+            <label class="field">
+              <span>Program</span>
+              <input id="programInput" name="programName" type="text" maxlength="120" autocomplete="off" />
+            </label>
+
+            <label class="field">
+              <span>Theme</span>
+              <input id="themeInput" name="theme" type="text" maxlength="120" autocomplete="off" />
+            </label>
+
+            <label class="field field-wide">
+              <span>Books</span>
+              <textarea id="booksInput" name="books" rows="2"></textarea>
+            </label>
           </div>
 
-          <div class="action-bar">
-            <div class="action-bar-inner">
-              <p id="plannerStatus" class="status-text" role="status" aria-live="polite">Ready</p>
-              <div class="action-bar-buttons">
-                <select id="savedWeeksSelect" class="secondary-button" aria-label="Load Saved Week">
-                  <option value="">Load Saved Week</option>
-                </select>
-                <button id="downloadDatabaseButton" class="secondary-button" type="button">Download Database</button>
-                <button id="applyCurrentTemplateButton" class="secondary-button" type="button">Apply to Template</button>
-                <button id="savePlanButton" class="primary-button" type="button">Save Week</button>
-              </div>
-            </div>
+          <div class="action-row">
+            <select id="savedWeeksSelect" class="primary-button" aria-label="Load Saved Week">
+              <option value="">Load Saved Week</option>
+            </select>
+            <button id="savePlanButton" class="primary-button accent" type="button">Save Data</button>
+            <button id="applyCurrentTemplateButton" class="secondary-button" type="button">Apply Data to Template</button>
+            <button id="downloadDatabaseButton" class="secondary-button" type="button">Download Database</button>
+          </div>
+
+          <p id="plannerStatus" class="status-text" role="status" aria-live="polite">Choose a month and week, save data for later, or fill your lesson-plan PDF template.</p>
+        </section>
+
+        <section class="week-band" aria-label="Selected work week">
+          <div id="weekDays" class="week-days"></div>
+        </section>
+
+        <section class="planner-section" aria-labelledby="weeklyActivitiesHeading">
+          <div class="section-heading">
+            <h2 id="weeklyActivitiesHeading">Daily Activities</h2>
+          </div>
+          <div id="dailyActivities" class="daily-activities"></div>
+        </section>
+
+        <section class="planner-section" aria-labelledby="outdoorHeading">
+          <div class="section-heading">
+            <h2 id="outdoorHeading">Outdoor Learning Experiences</h2>
+          </div>
+          <div id="outdoorGrid" class="single-grid"></div>
+        </section>
+
+        <section class="planner-section" aria-labelledby="centersHeading">
+          <div class="section-heading">
+            <h2 id="centersHeading">Centers</h2>
+          </div>
+          <div id="centersGrid" class="center-grid"></div>
+        </section>
+            </main>
           </div>
         </section>
 
-        <!-- ========================= ACTIVITY DESCRIPTOR ========================= -->
         <section id="activityDescriptorApp" class="app-view" data-app-view="activity-descriptor" hidden>
-          <header class="view-header">
-            <div class="view-heading">
-              <h1>Activity Descriptor</h1>
-              <p class="view-subtitle">Describe a single activity and export it to your template</p>
-            </div>
-            <span class="view-pill"><span class="view-pill-dot" aria-hidden="true"></span>Saves to database</span>
-          </header>
-
-          <div class="work-area">
-            <section class="panel" aria-labelledby="activityDetailsHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="activityDetailsHeading">Activity date</h2>
-                <p class="panel-hint">Saved records are keyed by this date</p>
+          <div class="page-shell">
+            <header class="hero-band app-hero">
+              <div class="hero-copy">
+                <p class="eyebrow">Activity Descriptor</p>
+                <h1>Describe learning activities with structured fields</h1>
+                <p class="hero-text">
+                  Enter a date, describe activities and skills learned, then apply the data to the activity descriptor template.
+                </p>
               </div>
-              <div class="panel-body">
+            </header>
+
+            <main class="planner-layout">
+              <section class="control-band" aria-label="Activity descriptor controls">
                 <div class="control-grid">
                   <label class="field">
                     <span>Date</span>
                     <input id="activityDate" name="date" type="date" />
                   </label>
                 </div>
-              </div>
-            </section>
 
-            <section class="panel" aria-labelledby="activityActivitiesHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="activityActivitiesHeading">Activities</h2>
-              </div>
-              <div class="panel-body">
+                <div class="action-row">
+                  <button id="loadActivityButton" class="primary-button" type="button">Load Saved Data</button>
+                  <button id="saveActivityButton" class="primary-button accent" type="button">Save Data</button>
+                  <button id="applyActivityTemplateButton" class="secondary-button" type="button">Apply Data to Template</button>
+                  <button id="downloadActivityDatabaseButton" class="secondary-button" type="button">Download Database</button>
+                </div>
+
+                <p id="activityStatus" class="status-text" role="status" aria-live="polite">Fill in the date and activity fields to get started.</p>
+              </section>
+
+              <section class="planner-section" aria-labelledby="activityActivitiesHeading">
+                <div class="section-heading">
+                  <h2 id="activityActivitiesHeading">Activities</h2>
+                </div>
                 <div id="activityFieldsContainer" class="activity-fields-container"></div>
-              </div>
-            </section>
+              </section>
 
-            <section class="panel" aria-labelledby="activitySkillsHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="activitySkillsHeading">Skills Learned</h2>
-                <button id="addSkillFieldButton" class="icon-button" type="button" aria-label="Add skill field">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
-                    <path d="M12 5.5v13M5.5 12h13" />
-                  </svg>
-                </button>
-              </div>
-              <div class="panel-body">
+              <section class="planner-section" aria-labelledby="activitySkillsHeading">
+                <div class="section-heading">
+                  <h2 id="activitySkillsHeading">Skills Learned</h2>
+                  <button id="addSkillFieldButton" class="icon-button" type="button" aria-label="Add skill field">+</button>
+                </div>
                 <div id="skillFieldsContainer" class="activity-fields-container"></div>
-              </div>
-            </section>
+              </section>
 
-            <section class="panel" aria-labelledby="activityLinksHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="activityLinksHeading">Links to Learning</h2>
-                <button id="addLinkFieldButton" class="icon-button" type="button" aria-label="Add link field">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
-                    <path d="M12 5.5v13M5.5 12h13" />
-                  </svg>
-                </button>
-              </div>
-              <div class="panel-body">
+              <section class="planner-section" aria-labelledby="activityLinksHeading">
+                <div class="section-heading">
+                  <h2 id="activityLinksHeading">Links to Learning</h2>
+                  <button id="addLinkFieldButton" class="icon-button" type="button" aria-label="Add link field">+</button>
+                </div>
                 <div id="linkFieldsContainer" class="activity-fields-container"></div>
-              </div>
-            </section>
-          </div>
-
-          <div class="action-bar">
-            <div class="action-bar-inner">
-              <p id="activityStatus" class="status-text" role="status" aria-live="polite">Ready</p>
-              <div class="action-bar-buttons">
-                <button id="loadActivityButton" class="secondary-button" type="button">Load Saved Data</button>
-                <button id="downloadActivityDatabaseButton" class="secondary-button" type="button">Download Database</button>
-                <button id="applyActivityTemplateButton" class="secondary-button" type="button">Apply to Template</button>
-                <button id="saveActivityButton" class="primary-button" type="button">Save Activity</button>
-              </div>
-            </div>
+              </section>
+            </main>
           </div>
         </section>
 
-        <!-- ============================ IMAGE GRID PDF ============================ -->
         <section id="gridApp" class="app-view" data-app-view="grid" hidden>
-          <header class="view-header">
-            <div class="view-heading">
-              <h1>Image Grid PDF</h1>
-              <p class="view-subtitle">Turn a folder of photos into a printable PDF</p>
-            </div>
-            <span class="view-pill"><span class="view-pill-dot" aria-hidden="true"></span>Images only, no page furniture</span>
-          </header>
+          <div class="page-shell">
+            <header class="hero-band app-hero">
+              <div class="hero-copy">
+                <p class="eyebrow">Image Grid PDF</p>
+                <h1>Turn an image folder into a clean grid PDF</h1>
+                <p class="hero-text">
+                  Select a folder, choose a layout, and get an image-only PDF with no headers, footers, or extra text.
+                </p>
+              </div>
+            </header>
 
-          <div class="work-area work-area-narrow">
-            <section class="panel" aria-labelledby="gridToolHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="gridToolHeading">Source images</h2>
-                <p class="panel-hint">Pick a whole folder or individual files</p>
+            <section class="grid-tool" aria-labelledby="gridToolHeading">
+              <div>
+                <p class="eyebrow">Image Folder to PDF</p>
+                <h2 id="gridToolHeading">Image Folder to Grid PDF</h2>
+                <p>
+                  Select an image folder and generate a clean PDF laid out in your chosen layout.
+                  The PDF contains only images, with no page numbers or added text.
+                </p>
               </div>
-              <div class="panel-body">
-                <div class="grid-tool-controls">
-                  <label class="field">
-                    <span>Image Folder</span>
-                    <input
-                      id="gridImageInput"
-                      type="file"
-                      accept="image/*"
-                      webkitdirectory
-                      directory
-                      multiple
-                    />
-                  </label>
-                  <label class="field">
-                    <span>Individual Images</span>
-                    <input
-                      id="gridImageFilesInput"
-                      type="file"
-                      accept="image/*"
-                      multiple
-                    />
-                  </label>
-                </div>
-              </div>
-            </section>
-
-            <section class="panel" aria-labelledby="gridLayoutHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="gridLayoutHeading">Page layout</h2>
-              </div>
-              <div class="panel-body">
-                <div class="grid-tool-controls">
-                  <div class="field">
-                    <span>Layout</span>
-                    <div class="radio-row">
-                      <label><input type="radio" name="gridLayout" value="grid" checked /> 2x2 grid (4 per page)</label>
-                      <label><input type="radio" name="gridLayout" value="two-per-page" /> 2 per page (A4)</label>
-                    </div>
-                  </div>
-                  <div class="field" id="gridOrientationField" hidden>
-                    <span>2-per-page orientation</span>
-                    <div class="radio-row">
-                      <label><input type="radio" name="gridOrientation" value="side" checked /> Side by side</label>
-                      <label><input type="radio" name="gridOrientation" value="stack" /> Up and down</label>
-                    </div>
+              <div class="grid-tool-controls">
+                <label class="field">
+                  <span>Image Folder</span>
+                  <input
+                    id="gridImageInput"
+                    type="file"
+                    accept="image/*"
+                    webkitdirectory
+                    directory
+                    multiple
+                  />
+                </label>
+                <label class="field">
+                  <span>Individual Images</span>
+                  <input
+                    id="gridImageFilesInput"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                  />
+                </label>
+                <div class="field">
+                  <span>Layout</span>
+                  <div class="radio-row">
+                    <label><input type="radio" name="gridLayout" value="grid" checked /> 2x2 grid (4 per page)</label>
+                    <label><input type="radio" name="gridLayout" value="two-per-page" /> 2 per page (A4)</label>
                   </div>
                 </div>
+                <div class="field" id="gridOrientationField" hidden>
+                  <span>2-per-page orientation</span>
+                  <div class="radio-row">
+                    <label><input type="radio" name="gridOrientation" value="side" checked /> Side by side</label>
+                    <label><input type="radio" name="gridOrientation" value="stack" /> Up and down</label>
+                  </div>
+                </div>
+                <button id="gridGenerateButton" class="primary-button accent" type="button">Generate PDF</button>
+                <p id="gridStatus" class="status-text" role="status" aria-live="polite">Choose a folder or individual images, pick a layout, then generate the PDF.</p>
               </div>
             </section>
-          </div>
-
-          <div class="action-bar">
-            <div class="action-bar-inner">
-              <p id="gridStatus" class="status-text" role="status" aria-live="polite">No images selected</p>
-              <div class="action-bar-buttons">
-                <button id="gridGenerateButton" class="primary-button" type="button">Generate PDF</button>
-              </div>
-            </div>
           </div>
         </section>
 
-        <!-- ============================== GRID PRINT ============================== -->
         <section id="gridPrintApp" class="app-view" data-app-view="grid-print" hidden>
-          <header class="view-header">
-            <div class="view-heading">
-              <h1>Grid Print</h1>
-              <p class="view-subtitle">Twelve photos, one A4 page</p>
-            </div>
-            <span class="view-pill"><span class="view-pill-dot" aria-hidden="true"></span>A4 &middot; 12 slots</span>
-          </header>
+          <div class="page-shell">
+            <header class="hero-band app-hero">
+              <div class="hero-copy">
+                <p class="eyebrow">Grid Print</p>
+                <h1>Fill a 3x4 photo grid and export it as one A4 page</h1>
+                <p class="hero-text">
+                  Click any cell to add a photo. Each cell matches the printed A4 cell exactly, so every
+                  photo fits inside its own box without overflowing.
+                </p>
+              </div>
+            </header>
 
-          <div class="work-area work-area-narrow">
-            <section class="panel" aria-labelledby="gridPrintToolHeading">
-              <div class="panel-header">
-                <h2 class="panel-title" id="gridPrintToolHeading">3x4 Photo Grid</h2>
-                <button id="gridPrintClearButton" class="subtle-button" type="button">Clear all</button>
+            <section class="grid-print-tool" aria-labelledby="gridPrintToolHeading">
+              <h2 id="gridPrintToolHeading">3x4 Photo Grid</h2>
+              <div id="gridPrintCells" class="grid-print-cells"></div>
+              <div class="action-row">
+                <button id="gridPrintGenerateButton" class="primary-button accent" type="button">Generate PDF</button>
+                <button id="gridPrintClearButton" class="secondary-button" type="button">Clear All</button>
               </div>
-              <div class="panel-body">
-                <div id="gridPrintCells" class="grid-print-cells"></div>
-              </div>
+              <p id="gridPrintStatus" class="status-text" role="status" aria-live="polite">
+                Add up to 12 photos, then generate grid-print.pdf.
+              </p>
             </section>
-          </div>
-
-          <div class="action-bar">
-            <div class="action-bar-inner">
-              <p id="gridPrintStatus" class="status-text" role="status" aria-live="polite">Click a slot to add a photo</p>
-              <div class="action-bar-buttons">
-                <button id="gridPrintGenerateButton" class="primary-button" type="button">Generate PDF</button>
-              </div>
-            </div>
           </div>
         </section>
       </div>
     </div>
 
     <div id="authModal" class="modal-backdrop" hidden>
-      <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+      <section class="modal-panel auth-modal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
         <div class="modal-heading">
           <div>
-            <p class="eyebrow">Cloud memory</p>
-            <h2 id="authModalTitle">Sign in</h2>
+            <p class="eyebrow">Cloud Memory</p>
+            <h2 id="authModalTitle">Sign In</h2>
           </div>
-          <button id="closeAuthModalButton" class="icon-button" type="button" aria-label="Close sign in">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
-              <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
-            </svg>
-          </button>
+          <button id="closeAuthModalButton" class="icon-button" type="button" aria-label="Close sign in">&times;</button>
         </div>
-        <div class="modal-body auth-form">
+        <div class="auth-form">
           <label class="field">
             <span>Email</span>
             <input id="authEmailInput" type="email" placeholder="you@example.com" autocomplete="email" />
@@ -422,10 +321,10 @@
             <input id="authPasswordInput" type="password" placeholder="At least 6 characters" autocomplete="current-password" />
           </label>
           <p id="authStatus" class="status-text" role="status" aria-live="polite"></p>
-        </div>
-        <div class="modal-actions">
-          <button id="authSignUpButton" class="secondary-button" type="button">Create account</button>
-          <button id="authSignInButton" class="primary-button" type="button">Sign in</button>
+          <div class="auth-actions">
+            <button id="authSignInButton" class="primary-button" type="button">Sign In</button>
+            <button id="authSignUpButton" class="secondary-button" type="button">Create Account</button>
+          </div>
         </div>
       </section>
     </div>
@@ -434,24 +333,20 @@
       <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="databaseModalTitle">
         <div class="modal-heading">
           <div>
-            <p class="eyebrow">Database export</p>
-            <h2 id="databaseModalTitle">Choose saved weeks</h2>
+            <p class="eyebrow">Database Export</p>
+            <h2 id="databaseModalTitle">Choose Saved Weeks</h2>
           </div>
-          <button id="closeDatabaseModalButton" class="icon-button" type="button" aria-label="Close database export">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
-              <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
-            </svg>
-          </button>
+          <button id="closeDatabaseModalButton" class="icon-button" type="button" aria-label="Close database export">×</button>
         </div>
         <div id="databaseWeekList" class="week-select-list"></div>
         <div class="modal-actions">
           <button id="cancelDatabaseDownloadButton" class="secondary-button" type="button">Cancel</button>
-          <button id="confirmDatabaseDownloadButton" class="primary-button" type="button">Download Selected</button>
+          <button id="confirmDatabaseDownloadButton" class="primary-button accent" type="button">Download Selected</button>
         </div>
       </section>
     </div>
 
     <script src="script.js?v=29"></script>
-    <script src="autofit.js?v=3"></script>
+    <script src="autofit.js?v=2"></script>
   </body>
 </html>

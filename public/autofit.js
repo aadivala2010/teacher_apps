@@ -7,12 +7,7 @@
 // box needs), so the whole page looks uniform instead of each box picking its
 // own size.
 (function () {
-  // Textareas are the fields that get printed into the templates, so they grow
-  // to fill their box. Single-line inputs (Class, Program, Theme, email...) are
-  // capped at the design size: growing them to 30px only made the control row
-  // ragged. They still SHRINK below the cap so long values stay readable.
   var MAX_PX = 30;
-  var MAX_INPUT_PX = 15;
   var MIN_PX = 10;
   var TEXTY = /^(text|search|email|url|tel|number|password|)$/; // "" = default input type
   var GROUP_ROOTS = ["#plannerApp", "#activityDescriptorApp"];
@@ -40,7 +35,7 @@
     var isArea = el.tagName === "TEXTAREA";
     if (isArea ? el.clientHeight === 0 : el.clientWidth === 0) return 0; // hidden
 
-    var lo = MIN_PX, hi = isArea ? MAX_PX : MAX_INPUT_PX, best = MIN_PX;
+    var lo = MIN_PX, hi = MAX_PX, best = MIN_PX;
     while (lo <= hi) {
       var mid = (lo + hi) >> 1;
       el.style.fontSize = mid + "px";
