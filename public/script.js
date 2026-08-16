@@ -13,7 +13,9 @@ var weekDays = document.querySelector("#weekDays");
 var dailyActivities = document.querySelector("#dailyActivities");
 var outdoorGrid = document.querySelector("#outdoorGrid");
 var centersGrid = document.querySelector("#centersGrid");
+var copyFromWeekSelect = document.querySelector("#copyFromWeekSelect");
 var savePlanButton = document.querySelector("#savePlanButton");
+var clearWeekButton = document.querySelector("#clearWeekButton");
 var applyCurrentTemplateButton = document.querySelector("#applyCurrentTemplateButton");
 var downloadDatabaseButton = document.querySelector("#downloadDatabaseButton");
 var databaseModal = document.querySelector("#databaseModal");
@@ -797,14 +799,25 @@ async function refreshSavedWeeksDropdown() {
   var plans = sortedPlansOldestFirst(Object.keys(byKey).map(function (key) { return byKey[key]; })).reverse();
   savedWeeksSelect.innerHTML = "";
   savedWeeksSelect.appendChild(option("Load Saved Week", ""));
+  if (copyFromWeekSelect) {
+    copyFromWeekSelect.innerHTML = "";
+    copyFromWeekSelect.appendChild(option("Copy Data From Week", ""));
+  }
   plans.forEach(function (plan) {
     var label = databasePlanLabel(plan);
     if (plan.theme) {
       label += " - " + plan.theme;
     }
-    savedWeeksSelect.appendChild(option(label, plannerStorageKey(plan.year, plan.month, plan.weekNumber)));
+    var key = plannerStorageKey(plan.year, plan.month, plan.weekNumber);
+    savedWeeksSelect.appendChild(option(label, key));
+    if (copyFromWeekSelect) {
+      copyFromWeekSelect.appendChild(option(label, key));
+    }
   });
   savedWeeksSelect.value = "";
+  if (copyFromWeekSelect) {
+    copyFromWeekSelect.value = "";
+  }
 }
 
 async function handleSavedWeekPicked() {
@@ -2149,13 +2162,13 @@ function selectedWeekLookup() {
 // Returns true (loaded a saved week), false (blank week), or "stale" when a
 // newer call to this function started before this one finished - the newer
 // call owns the form now, so this one must not overwrite it.
-async function loadSelectedWeekIntoForm() {
+async function loadSelectedWeekIntoForm(sourceLookup) {
   weekLoadSerial += 1;
   var serial = weekLoadSerial;
   function stillCurrent() {
     return serial === weekLoadSerial;
   }
-  var lookup = selectedWeekLookup();
+  var lookup = sourceLookup || selectedWeekLookup();
   var response;
   var serverData;
   var data;
@@ -2220,6 +2233,58 @@ async function handleSelectedWeekChanged() {
     syncPreviousWeekSelectors();
     setPlannerStatus(error.message || "Could not load this week.", "error");
   }
+}
+
+// Pull another saved week's data into the week that is currently selected, so a
+// repeated week only has to be typed once. Nothing is written until "Save Data".
+async function handleCopyFromWeekPicked() {
+  var key = copyFromWeekSelect.value;
+  var label = copyFromWeekSelect.options[copyFromWeekSelect.selectedIndex].textContent;
+  var parts;
+  copyFromWeekSelect.value = "";
+  if (!key) {
+    return;
+  }
+  if (key === plannerStorageKey(selectedYear(), Number(monthSelect.value), Number(weekSelect.value))) {
+    setPlannerStatus("That is the week you are already editing.");
+    return;
+  }
+  if (!window.confirm("Replace everything in this week with the data from " + label + "?")) {
+    return;
+  }
+  setPlannerStatus("Copying " + label + "...");
+  try {
+    parts = key.split("-");
+    var result = await loadSelectedWeekIntoForm({
+      year: Number(parts[0]),
+      month: Number(parts[1]),
+      weekNumber: Number(parts[2]),
+    });
+    if (result === "stale") {
+      return;
+    }
+    if (!result) {
+      setPlannerStatus("That saved week could not be found.", "error");
+      return;
+    }
+    plannerDirty = true;
+    setPlannerStatus("Copied " + label + " into this week. Click \"Save Data\" to keep it.", "success");
+  } catch (error) {
+    setPlannerStatus(error.message || "Could not copy that week.", "error");
+  }
+}
+
+function handleClearWeek() {
+  if (!window.confirm("Clear every field for this week? Click \"Save Data\" afterwards to erase the saved copy too.")) {
+    return;
+  }
+  var attachmentKeys = Object.keys(currentAttachments);
+  resetPlannerForm();
+  attachmentKeys.forEach(function (key) {
+    removedAttachmentFields[key] = true;
+  });
+  plannerDirty = true;
+  setPlannerStatus("This week was cleared. Click \"Save Data\" to erase the saved copy too.", "success");
 }
 
 async function handleApplyCurrentTemplate() {
@@ -2773,8 +2838,14 @@ function initializePlanner() {
   if (savedWeeksSelect) {
     savedWeeksSelect.addEventListener("change", handleSavedWeekPicked);
   }
+  if (copyFromWeekSelect) {
+    copyFromWeekSelect.addEventListener("change", handleCopyFromWeekPicked);
+  }
   refreshSavedWeeksDropdown();
   savePlanButton.addEventListener("click", handleSavePlan);
+  if (clearWeekButton) {
+    clearWeekButton.addEventListener("click", handleClearWeek);
+  }
   applyCurrentTemplateButton.addEventListener("click", handleApplyCurrentTemplate);
   downloadDatabaseButton.addEventListener("click", handleDownloadDatabase);
   closeDatabaseModalButton.addEventListener("click", closeDatabaseModal);
