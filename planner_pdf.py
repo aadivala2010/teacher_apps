@@ -378,6 +378,64 @@ def _write_appearances(writer: PdfWriter, sized: list[tuple]) -> None:
     acroform[NameObject("/NeedAppearances")] = BooleanObject(False)
 
 
+def _flatten(writer: PdfWriter) -> None:
+    """Stamp every widget's appearance into the page and drop the form.
+
+    A live AcroForm is laid out by the viewer, not by us: iOS Safari re-wraps
+    each field from its value and its own leading, which clipped the last line
+    out of short boxes like Circle Time & Routines. Flattened, the plan is
+    plain text on a page and every viewer draws exactly the same thing.
+    """
+    from pypdf.generic import ArrayObject, DecodedStreamObject, DictionaryObject, NameObject
+
+    def _content(data: str):
+        stream = DecodedStreamObject()
+        stream.set_data(data.encode("latin-1"))
+        return writer._add_object(stream)
+
+    for page in writer.pages:
+        resources = page.get("/Resources")
+        if resources is None:
+            resources = DictionaryObject()
+            page[NameObject("/Resources")] = resources
+        resources = resources.get_object()
+        xobjects = resources.get("/XObject")
+        if xobjects is None:
+            xobjects = DictionaryObject()
+            resources[NameObject("/XObject")] = xobjects
+        xobjects = xobjects.get_object()
+
+        ops = []
+        for index, annot_ref in enumerate(page.get("/Annots") or []):
+            annot = annot_ref.get_object()
+            appearance = annot.get("/AP")
+            normal = appearance.get_object().get("/N") if appearance else None
+            normal = normal.get_object() if normal is not None else None
+            if normal is not None and "/BBox" not in normal:  # on/off states, e.g. checkboxes
+                normal = normal.get(str(annot.get("/AS") or ""))
+                normal = normal.get_object() if normal is not None else None
+            if normal is None or annot.get("/Rect") is None:
+                continue
+            key = NameObject(f"/PlanFld{index}")
+            xobjects[key] = normal.indirect_reference or writer._add_object(normal)
+            x1, y1 = float(annot["/Rect"][0]), float(annot["/Rect"][1])
+            ops.append(f"q 1 0 0 1 {x1:.4f} {y1:.4f} cm {key} Do Q")
+
+        contents = page.get("/Contents")
+        resolved = contents.get_object() if contents is not None else None
+        if isinstance(resolved, ArrayObject):
+            original = list(resolved)
+        else:
+            original = [page.raw_get("/Contents")] if contents is not None else []
+        page[NameObject("/Contents")] = ArrayObject(
+            [_content("q"), *original, _content("Q"), _content("\n".join(ops))]
+        )
+        page[NameObject("/Annots")] = ArrayObject()
+
+    if "/AcroForm" in writer.root_object:
+        del writer.root_object[NameObject("/AcroForm")]
+
+
 def output_filename(plan: dict[str, object]) -> str:
     month_label = str(plan.get("monthLabel") or "Month").strip().replace("/", "-")
     week_number = str(plan.get("weekNumber") or "Week").strip()
@@ -401,6 +459,7 @@ def build_planner_pdf(plan: dict[str, object]) -> tuple[bytes, str]:
 
     # After update_page_form_field_values, which overwrites /AP with its own.
     _write_appearances(writer, sized)
+    _flatten(writer)
 
     buffer = BytesIO()
     writer.write(buffer)
@@ -408,34 +467,26 @@ def build_planner_pdf(plan: dict[str, object]) -> tuple[bytes, str]:
 
 
 def _self_check() -> None:
-    """Appearance streams must hold the real, wrapped, latin-1 text — not UTF-16 hex."""
+    """The plan must ship as flat page text, wrapped by us, with nothing left to re-lay-out."""
     long_text = "Children explore the winter sensory bin with scoops and tongs while naming what they find."
     data, _ = build_planner_pdf(
         {"monthLabel": "January", "weekNumber": "2", "className": "Room 3",
          "activities": {"circle_time": {"monday": {"text": long_text}}}}
     )
     reader = PdfReader(BytesIO(data))
-    assert reader.trailer["/Root"]["/AcroForm"]["/NeedAppearances"].value is False
+    page = reader.pages[0]
+    assert "/AcroForm" not in reader.trailer["/Root"], "form must be flattened away"
+    assert not page.get("/Annots"), "no widgets may survive flattening"
 
-    streams, values = {}, {}
-
-    def walk(entries):
-        for ref in entries:
-            entry = ref.get_object()
-            if entry.get("/Kids"):
-                walk(entry["/Kids"])
-            elif entry.get("/FT") == "/Tx" and entry.get("/AP"):
-                streams[str(entry.get("/T"))] = entry["/AP"]["/N"].get_data().decode("latin-1")
-                values[str(entry.get("/T"))] = str(entry.get("/V") or "")
-
-    walk(reader.trailer["/Root"]["/AcroForm"]["/Fields"])
-    # Viewers that lay the field out themselves (iOS) re-wrap /V, so a baked
-    # newline there turns into a forced break and ragged text.
-    assert "\n" not in values["Circle Time Mon"], values["Circle Time Mon"]
-    circle = streams["Circle Time Mon"]
-    assert "(Children explore the winter" in circle, circle
-    assert circle.count(") Tj") > 1, "long text must be drawn as several wrapped lines"
-    assert "sight words.) Tj" in streams["Circle Time  Routines"], "routines text must not be clipped"
+    drawn = "\n".join(
+        obj.get_object().get_data().decode("latin-1")
+        for obj in page["/Resources"]["/XObject"].values()
+        if obj.get_object().get("/Subtype") == "/Form"
+    )
+    assert "(Children explore the winter" in drawn, drawn[:400]
+    assert drawn.count(") Tj") > 3, "long text must be drawn as several wrapped lines"
+    assert "sight words.) Tj" in drawn, "routines text must not be clipped"
+    assert "January - Week 2" in reader.pages[0].extract_text()
     print("ok")
 
 
