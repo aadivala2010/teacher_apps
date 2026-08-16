@@ -1095,7 +1095,7 @@ function renderSectionGrids() {
       var fieldKey = this.dataset.field;
       var textarea = document.querySelector('[data-field="' + fieldKey + '"][data-kind="text"]');
       if (textarea && this.value) {
-        textarea.value += (textarea.value ? "\n" : "") + "Links to learning: " + this.value;
+        textarea.value += (textarea.value ? " " : "") + "Links to learning: " + this.value;
         this.value = "";
       }
     });

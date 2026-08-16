@@ -98,21 +98,25 @@ def _split_long_word(word: str, budget_units: float) -> list[str]:
 
 
 def _wrap_to_lines(text: str, budget_units: float) -> list[str]:
-    """Word-wrap text into lines at most `budget_units` wide (1/1000 em units)."""
+    """Word-wrap text into lines at most `budget_units` wide (1/1000 em units).
+
+    Newlines in the source are treated as spaces: the boxes are short and the
+    text is auto-shrunk to fit, so a hard break (the app appends "Links to
+    learning:" on its own line) only wastes a line and leaves a ragged gap.
+    """
+    words = [chunk for word in str(text).split() for chunk in _split_long_word(word, budget_units)]
     lines: list[str] = []
-    for para in str(text).split("\n"):
-        words = [chunk for word in para.split(" ") for chunk in _split_long_word(word, budget_units)]
-        cur_words: list[str] = []
-        cur_w = 0.0
-        for word in words:
-            w = _text_units(word)
-            if cur_words and cur_w + _SPACE_W + w > budget_units:
-                lines.append(" ".join(cur_words))
-                cur_words, cur_w = [word], w
-            else:
-                cur_words.append(word)
-                cur_w += (_SPACE_W if cur_w else 0) + w
-        lines.append(" ".join(cur_words))
+    cur_words: list[str] = []
+    cur_w = 0.0
+    for word in words:
+        w = _text_units(word)
+        if cur_words and cur_w + _SPACE_W + w > budget_units:
+            lines.append(" ".join(cur_words))
+            cur_words, cur_w = [word], w
+        else:
+            cur_words.append(word)
+            cur_w += (_SPACE_W if cur_w else 0) + w
+    lines.append(" ".join(cur_words))
     return lines
 
 
