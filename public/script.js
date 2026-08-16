@@ -14,6 +14,8 @@ var dailyActivities = document.querySelector("#dailyActivities");
 var outdoorGrid = document.querySelector("#outdoorGrid");
 var centersGrid = document.querySelector("#centersGrid");
 var copyFromWeekSelect = document.querySelector("#copyFromWeekSelect");
+var themeSearchInput = document.querySelector("#themeSearchInput");
+var themeSearchResults = document.querySelector("#themeSearchResults");
 var savePlanButton = document.querySelector("#savePlanButton");
 var clearWeekButton = document.querySelector("#clearWeekButton");
 var applyCurrentTemplateButton = document.querySelector("#applyCurrentTemplateButton");
@@ -60,6 +62,7 @@ var apiRoutes = {
   syncDelete: "/api/sync-delete",
   syncAttachmentUpload: "/api/sync-upload-attachment",
 };
+var savedPlansCache = [];
 var plannerDatabaseName = "teacherPlannerDb";
 var plannerDatabaseVersion = 1;
 var plannerStoreName = "plans";
@@ -797,6 +800,8 @@ async function refreshSavedWeeksDropdown() {
   (await listPlansFromCloud()).forEach(collect);
 
   var plans = sortedPlansOldestFirst(Object.keys(byKey).map(function (key) { return byKey[key]; })).reverse();
+  savedPlansCache = plans;
+  renderThemeSearchResults();
   savedWeeksSelect.innerHTML = "";
   savedWeeksSelect.appendChild(option("Load Saved Week", ""));
   if (copyFromWeekSelect) {
@@ -820,6 +825,15 @@ async function refreshSavedWeeksDropdown() {
   }
 }
 
+async function goToWeek(key) {
+  var parts = key.split("-");
+  yearSelect.value = parts[0];
+  monthSelect.value = parts[1];
+  renderWeekOptions();
+  weekSelect.value = parts[2];
+  await handleSelectedWeekChanged();
+}
+
 async function handleSavedWeekPicked() {
   var key = savedWeeksSelect.value;
   if (!key) {
@@ -828,13 +842,54 @@ async function handleSavedWeekPicked() {
   if (!confirmDiscardChanges(plannerDirty, function () { savedWeeksSelect.value = ""; })) {
     return;
   }
-  var parts = key.split("-");
-  yearSelect.value = parts[0];
-  monthSelect.value = parts[1];
-  renderWeekOptions();
-  weekSelect.value = parts[2];
   savedWeeksSelect.value = "";
-  await handleSelectedWeekChanged();
+  await goToWeek(key);
+}
+
+// Live search over every saved week's theme. Clicking a result opens that week.
+function renderThemeSearchResults() {
+  if (!themeSearchInput || !themeSearchResults) {
+    return;
+  }
+  var query = themeSearchInput.value.trim().toLowerCase();
+  var matches;
+
+  if (!query) {
+    themeSearchResults.hidden = true;
+    themeSearchResults.innerHTML = "";
+    return;
+  }
+  matches = savedPlansCache.filter(function (plan) {
+    return String(plan.theme || "").toLowerCase().indexOf(query) !== -1;
+  });
+  themeSearchResults.hidden = false;
+  if (!matches.length) {
+    themeSearchResults.innerHTML = '<p class="status-text">No saved week has a theme matching "' + escapeHtml(query) + '".</p>';
+    return;
+  }
+  themeSearchResults.innerHTML = matches
+    .map(function (plan) {
+      var detail = databasePlanDetail(plan);
+      return (
+        '<button type="button" class="theme-result" data-week-key="' +
+        escapeHtml(plannerStorageKey(plan.year, plan.month, plan.weekNumber)) +
+        '"><strong>' + escapeHtml(databasePlanLabel(plan)) + " - " + escapeHtml(plan.theme) + "</strong>" +
+        (detail ? "<small>" + escapeHtml(detail) + "</small>" : "") +
+        "</button>"
+      );
+    })
+    .join("");
+}
+
+async function handleThemeResultClick(event) {
+  var button = event.target.closest ? event.target.closest("[data-week-key]") : null;
+  if (!button) {
+    return;
+  }
+  if (!confirmDiscardChanges(plannerDirty)) {
+    return;
+  }
+  await goToWeek(button.dataset.weekKey);
 }
 
 function option(label, value) {
@@ -2126,6 +2181,7 @@ async function handleSavePlan() {
           cloudResult = await syncPlanToCloud(data.plan);
           plannerDirty = false;
           setPlannerStatus(savedWeekMessage(cloudResult), "success");
+          refreshSavedWeeksDropdown();
           return;
         }
       } catch (serverError) {
@@ -2840,6 +2896,12 @@ function initializePlanner() {
   }
   if (copyFromWeekSelect) {
     copyFromWeekSelect.addEventListener("change", handleCopyFromWeekPicked);
+  }
+  if (themeSearchInput) {
+    themeSearchInput.addEventListener("input", renderThemeSearchResults);
+  }
+  if (themeSearchResults) {
+    themeSearchResults.addEventListener("click", handleThemeResultClick);
   }
   refreshSavedWeeksDropdown();
   savePlanButton.addEventListener("click", handleSavePlan);

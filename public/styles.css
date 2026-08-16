@@ -981,6 +981,52 @@ select.primary-button option {
   line-height: 1.35;
 }
 
+.theme-search-input {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 0.86rem;
+  min-width: 220px;
+}
+
+.theme-search-results {
+  margin-top: 12px;
+  max-height: 260px;
+}
+
+/* .week-select-list sets display:grid, which would otherwise beat [hidden]. */
+.theme-search-results[hidden] {
+  display: none;
+}
+
+.theme-result {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.theme-result strong,
+.theme-result small {
+  display: block;
+}
+
+.theme-result small {
+  margin-top: 3px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .modal-actions {
   display: flex;
   flex-wrap: wrap;
