@@ -238,13 +238,13 @@ def _optimal_font_size(text: str, field_width: float, field_height: float, max_s
     return math.floor(lo * 10) / 10
 
 
-def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> None:
+def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> list[tuple]:
     fields_obj = writer.root_object.get("/AcroForm")
     if fields_obj is None:
-        return
+        return []
     field_entries = fields_obj.get("/Fields")
     if field_entries is None:
-        return
+        return []
 
     re_da = re.compile(r"^\s*/(\w+)\s+([\d.]+)\s+Tf\s")
     collected: list[tuple[object, str, str, float, float, float]] = []
@@ -274,10 +274,8 @@ def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> No
                 continue
             collected.append((entry, name, m.group(1), float(m.group(2)), width, height))
 
-    try:
-        from pypdf.generic import NameObject, NumberObject, create_string_object
-    except ImportError:
-        return
+    from pypdf.generic import NameObject, NumberObject, create_string_object
+
     _walk_fields(field_entries)
 
     # One shared size for every content box: the largest size (capped at the
@@ -295,6 +293,7 @@ def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> No
     # width data for — appearance streams then silently fall back to Helvetica
     # while viewers that regenerate use real Calibri, so boxes render in
     # visibly different fonts. Helv is a standard font every renderer agrees on.
+    sized: list[tuple] = []
     for entry, name, _, current_size, width, height in collected:
         row = _row_of(name)
         text = field_values.get(name)
@@ -313,6 +312,66 @@ def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> No
             if text:
                 field_values[name] = "\n".join(_wrap_to_lines(text, (width - PAD_X) * 1000.0 / new_size))
         entry[NameObject("/DA")] = create_string_object(f"/Helv {new_size} Tf 0 g")
+        sized.append((entry, name, new_size, width, height))
+    return sized
+
+
+def _pdf_escape(line: str) -> str:
+    out = line.encode("latin-1", "replace").decode("latin-1")
+    for ch in ("\\", "(", ")"):
+        out = out.replace(ch, "\\" + ch)
+    return out
+
+
+def _write_appearances(writer: PdfWriter, sized: list[tuple], field_values: dict[str, str]) -> None:
+    """Draw each text field's own appearance stream, one Tj per wrapped line.
+
+    pypdf's generated appearances put the whole value on a single clipped line
+    and hex-encode some of them as UTF-16 against a simple font, so viewers that
+    render the stored appearance instead of regenerating it (iOS Safari/Files,
+    most printers) showed clipped, letter-spaced garbage. With real appearances
+    baked in, /NeedAppearances is off and every viewer draws the same thing.
+    """
+    from pypdf.generic import (
+        ArrayObject,
+        BooleanObject,
+        DecodedStreamObject,
+        DictionaryObject,
+        FloatObject,
+        NameObject,
+    )
+
+    acroform = writer.root_object["/AcroForm"]
+    resources = acroform.get("/DR", DictionaryObject())
+
+    for entry, name, size, width, height in sized:
+        lines = str(field_values.get(name) or "").split("\n")
+        ops = [
+            "/Tx BMC",
+            "q",
+            f"1 1 {width - 2:.2f} {height - 2:.2f} re W n",
+            "BT",
+            f"/Helv {size} Tf 0 g",
+            f"{PAD_X / 2:.2f} {height - PAD_Y / 2 - size:.2f} Td",
+            f"{size * LINE_HEIGHT_FACTOR:.2f} TL",
+        ]
+        for line in lines:
+            ops.append(f"({_pdf_escape(line)}) Tj T*")
+        ops += ["ET", "Q", "EMC"]
+
+        stream = DecodedStreamObject()
+        stream.set_data("\n".join(ops).encode("latin-1"))
+        stream[NameObject("/Type")] = NameObject("/XObject")
+        stream[NameObject("/Subtype")] = NameObject("/Form")
+        stream[NameObject("/BBox")] = ArrayObject(
+            [FloatObject(0), FloatObject(0), FloatObject(width), FloatObject(height)]
+        )
+        stream[NameObject("/Resources")] = resources
+        ap = DictionaryObject()
+        ap[NameObject("/N")] = writer._add_object(stream)
+        entry[NameObject("/AP")] = ap
+
+    acroform[NameObject("/NeedAppearances")] = BooleanObject(False)
 
 
 def output_filename(plan: dict[str, object]) -> str:
@@ -329,14 +388,48 @@ def build_planner_pdf(plan: dict[str, object]) -> tuple[bytes, str]:
     reader = PdfReader(str(TEMPLATE_PATH))
     writer = PdfWriter()
     writer.append(reader)
-    writer.set_need_appearances_writer()
     field_values = _field_map(plan)
 
-    _auto_fit_text_fields(writer, field_values)
+    sized = _auto_fit_text_fields(writer, field_values)
 
     for page in writer.pages:
         writer.update_page_form_field_values(page, field_values, auto_regenerate=True)
 
+    # After update_page_form_field_values, which overwrites /AP with its own.
+    _write_appearances(writer, sized, field_values)
+
     buffer = BytesIO()
     writer.write(buffer)
     return buffer.getvalue(), output_filename(plan)
+
+
+def _self_check() -> None:
+    """Appearance streams must hold the real, wrapped, latin-1 text — not UTF-16 hex."""
+    long_text = "Children explore the winter sensory bin with scoops and tongs while naming what they find."
+    data, _ = build_planner_pdf(
+        {"monthLabel": "January", "weekNumber": "2", "className": "Room 3",
+         "activities": {"circle_time": {"monday": {"text": long_text}}}}
+    )
+    reader = PdfReader(BytesIO(data))
+    assert reader.trailer["/Root"]["/AcroForm"]["/NeedAppearances"].value is False
+
+    streams = {}
+
+    def walk(entries):
+        for ref in entries:
+            entry = ref.get_object()
+            if entry.get("/Kids"):
+                walk(entry["/Kids"])
+            elif entry.get("/FT") == "/Tx" and entry.get("/AP"):
+                streams[str(entry.get("/T"))] = entry["/AP"]["/N"].get_data().decode("latin-1")
+
+    walk(reader.trailer["/Root"]["/AcroForm"]["/Fields"])
+    circle = streams["Circle Time Mon"]
+    assert "(Children explore the winter" in circle, circle
+    assert circle.count(") Tj") > 1, "long text must be drawn as several wrapped lines"
+    assert "sight words.) Tj" in streams["Circle Time  Routines"], "routines text must not be clipped"
+    print("ok")
+
+
+if __name__ == "__main__":
+    _self_check()
