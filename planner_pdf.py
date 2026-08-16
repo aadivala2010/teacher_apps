@@ -37,6 +37,13 @@ PAD_Y = 4.0  # top+bottom widget padding
 SINGLE_LINE_FIELDS = {"Week", "Class", "Program", "Books"}
 UNIFORM_MAX_SIZE = 12.0
 
+# The routines row is the same every week, so it isn't part of the plan data.
+ROUTINES_TEXT = (
+    'Calendar and weather. Songs: "Days of the Week", "Months in a Year", '
+    'Winter songs, Spanish vocabulary. Create our letter of the week word list. '
+    "Review our sight words."
+)
+
 
 def _row_of(name: str) -> str | None:
     if name.startswith("Circle Time") and "Routines" not in name:
@@ -149,7 +156,7 @@ def _field_map(plan: dict[str, object]) -> dict[str, str]:
         "Class": str(plan.get("className") or ""),
         "Program": str(plan.get("programName") or ""),
         "Books": str(plan.get("books") or ""),
-        "Circle Time  Routines": "",
+        "Circle Time  Routines": ROUTINES_TEXT,
         "Outdoor Learning": str(plan.get("outdoorLearning") or ""),
         "OLE Assessment": _normalize_choice(str(plan.get("outdoorAssessment") or "")),
         "Dramatic PlayRow1": _activity_text(plan, "centers", "dramatic_play"),
