@@ -300,23 +300,24 @@ def _auto_fit_text_fields(writer: PdfWriter, field_values: dict[str, str]) -> li
     sized: list[tuple] = []
     for entry, name, _, current_size, width, height in collected:
         row = _row_of(name)
-        text = field_values.get(name)
+        text = field_values.get(name) or ""
         if row is None:
             new_size = current_size
             if text:
                 width_fit = math.floor((width - PAD_X) * 1000.0 / _text_units(text) * 10) / 10
                 new_size = max(MIN_FONT_SIZE, min(current_size, width_fit))
+            lines = [text]
         else:
             new_size = row_sizes.get(row, UNIFORM_MAX_SIZE)
-            # Bake explicit newlines and the multiline flag into the field, because
-            # printers/browsers use the stored appearance stream, which never
-            # word-wraps on its own — relying on the viewer to re-wrap is what made
-            # printed plans show one long clipped line.
+            # Multiline so viewers that lay the field out themselves wrap instead
+            # of clipping. The wrap is NOT baked into the value: hard newlines in
+            # /V become forced breaks when such a viewer re-wraps at its own
+            # width, which is what made iPad exports come out ragged.
             entry[NameObject("/Ff")] = NumberObject(int(entry.get("/Ff", 0)) | 4096)
-            if text:
-                field_values[name] = "\n".join(_wrap_to_lines(text, (width - PAD_X) * 1000.0 / new_size))
+            lines = _wrap_to_lines(text, (width - PAD_X) * 1000.0 / new_size) if text else [""]
+            field_values[name] = " ".join(text.split())
         entry[NameObject("/DA")] = create_string_object(f"/Helv {new_size} Tf 0 g")
-        sized.append((entry, name, new_size, width, height))
+        sized.append((entry, name, new_size, width, height, lines))
     return sized
 
 
@@ -327,7 +328,7 @@ def _pdf_escape(line: str) -> str:
     return out
 
 
-def _write_appearances(writer: PdfWriter, sized: list[tuple], field_values: dict[str, str]) -> None:
+def _write_appearances(writer: PdfWriter, sized: list[tuple]) -> None:
     """Draw each text field's own appearance stream, one Tj per wrapped line.
 
     pypdf's generated appearances put the whole value on a single clipped line
@@ -348,8 +349,7 @@ def _write_appearances(writer: PdfWriter, sized: list[tuple], field_values: dict
     acroform = writer.root_object["/AcroForm"]
     resources = acroform.get("/DR", DictionaryObject())
 
-    for entry, name, size, width, height in sized:
-        lines = str(field_values.get(name) or "").split("\n")
+    for entry, _name, size, width, height, lines in sized:
         ops = [
             "/Tx BMC",
             "q",
@@ -400,7 +400,7 @@ def build_planner_pdf(plan: dict[str, object]) -> tuple[bytes, str]:
         writer.update_page_form_field_values(page, field_values, auto_regenerate=True)
 
     # After update_page_form_field_values, which overwrites /AP with its own.
-    _write_appearances(writer, sized, field_values)
+    _write_appearances(writer, sized)
 
     buffer = BytesIO()
     writer.write(buffer)
@@ -417,7 +417,7 @@ def _self_check() -> None:
     reader = PdfReader(BytesIO(data))
     assert reader.trailer["/Root"]["/AcroForm"]["/NeedAppearances"].value is False
 
-    streams = {}
+    streams, values = {}, {}
 
     def walk(entries):
         for ref in entries:
@@ -426,8 +426,12 @@ def _self_check() -> None:
                 walk(entry["/Kids"])
             elif entry.get("/FT") == "/Tx" and entry.get("/AP"):
                 streams[str(entry.get("/T"))] = entry["/AP"]["/N"].get_data().decode("latin-1")
+                values[str(entry.get("/T"))] = str(entry.get("/V") or "")
 
     walk(reader.trailer["/Root"]["/AcroForm"]["/Fields"])
+    # Viewers that lay the field out themselves (iOS) re-wrap /V, so a baked
+    # newline there turns into a forced break and ragged text.
+    assert "\n" not in values["Circle Time Mon"], values["Circle Time Mon"]
     circle = streams["Circle Time Mon"]
     assert "(Children explore the winter" in circle, circle
     assert circle.count(") Tj") > 1, "long text must be drawn as several wrapped lines"
