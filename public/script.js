@@ -49,6 +49,7 @@ var apiRoutes = {
   plannerSave: "/api/planner-save",
   plannerUploadAttachment: "/api/planner-upload-attachment",
   plannerLoad: "/api/planner-load",
+  plannerDelete: "/api/planner-delete",
   plannerExportPdf: "/api/planner-export-pdf",
   plannerExportDocx: "/api/planner-export-docx",
   plannerExportDatabaseDocx: "/api/planner-export-database-docx",
@@ -558,7 +559,7 @@ async function handleAuthSignIn() {
     closeAuthModal();
     setPlannerStatus("Signed in as " + data.user.email + ". Syncing data...");
     syncAllLocalToCloud();
-    syncAllLocalActivitiesToCloud();
+    syncAllLocalActivitiesToCloud().then(refreshSavedDatesDropdown);
   } catch (error) {
     authStatus.textContent = error.message || "Could not sign in.";
     authStatus.className = "status-text error";
@@ -598,7 +599,7 @@ async function handleAuthSignUp() {
     closeAuthModal();
     setPlannerStatus("Account created and signed in as " + data.user.email + ". Syncing data...");
     syncAllLocalToCloud();
-    syncAllLocalActivitiesToCloud();
+    syncAllLocalActivitiesToCloud().then(refreshSavedDatesDropdown);
   } catch (error) {
     authStatus.textContent = error.message || "Could not create account.";
     authStatus.className = "status-text error";
@@ -724,6 +725,25 @@ async function loadPlanFromCloud(year, month, weekNumber) {
     // Cloud load failed silently
   }
   return null;
+}
+
+async function deletePlanFromCloud(year, month, weekNumber) {
+  await ensureFreshToken();
+  if (!authToken || !authUser) {
+    return false;
+  }
+  try {
+    var response = await fetch(apiRoutes.syncDelete, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken },
+      body: JSON.stringify({ year: year, month: month, weekNumber: weekNumber }),
+    });
+    var data = await response.json();
+    return Boolean(response.ok && data.ok);
+  } catch (e) {
+    // Cloud delete failed silently - the local copy is still erased
+  }
+  return false;
 }
 
 async function syncAllLocalToCloud() {
@@ -1379,6 +1399,46 @@ function plannerPayload() {
   };
 }
 
+// True when the week on screen holds nothing at all - every text box empty, no
+// assessment picked, and no attachment left. Saving such a week erases it
+// instead of storing a blank copy that would clutter the saved-week lists.
+function plannerPayloadIsEmpty(payload) {
+  var i;
+  var key;
+  var section;
+  var day;
+
+  if (payload.className || payload.programName || payload.theme || payload.books) {
+    return false;
+  }
+  if (payload.outdoorLearning || payload.outdoorAssessment) {
+    return false;
+  }
+
+  var sections = ["circle_time", "small_group_1", "small_group_2", "centers"];
+  for (i = 0; i < sections.length; i += 1) {
+    section = (payload.activities || {})[sections[i]] || {};
+    for (key in section) {
+      if (Object.prototype.hasOwnProperty.call(section, key)) {
+        day = section[key] || {};
+        if (day.text || day.assessment) {
+          return false;
+        }
+      }
+    }
+  }
+
+  for (key in currentAttachments) {
+    if (Object.prototype.hasOwnProperty.call(currentAttachments, key) && currentAttachments[key]) {
+      return false;
+    }
+  }
+  if (selectedAttachmentByteTotal() > 0) {
+    return false;
+  }
+  return true;
+}
+
 function openPlannerDatabase() {
   return new Promise(function (resolve, reject) {
     var request = window.indexedDB.open(plannerDatabaseName, plannerDatabaseVersion);
@@ -1704,6 +1764,57 @@ function loadAllPlansFromIndexedDb() {
       };
     });
   });
+}
+
+function deletePlanFromIndexedDb(year, month, weekNumber) {
+  return openPlannerDatabase().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var transaction = db.transaction(plannerStoreName, "readwrite");
+      var store = transaction.objectStore(plannerStoreName);
+      var request = store.delete(plannerStorageKey(year, month, weekNumber));
+
+      request.onsuccess = function () {
+        resolve(true);
+      };
+
+      request.onerror = function () {
+        reject(new Error("Could not erase this week from this device."));
+      };
+
+      transaction.oncomplete = function () {
+        db.close();
+      };
+    });
+  });
+}
+
+// A saved week only really disappears when it is gone from all three places it
+// can live: this browser, the hosted database, and the signed-in cloud copy.
+async function erasePlanEverywhere(lookup) {
+  var erased = false;
+  var response;
+  var data;
+  try {
+    if (await loadPlanFromIndexedDb(lookup.year, lookup.month, lookup.weekNumber)) {
+      erased = true;
+    }
+    await deletePlanFromIndexedDb(lookup.year, lookup.month, lookup.weekNumber);
+  } catch (e) {
+    // No local copy to erase
+  }
+  try {
+    response = await postJson(apiRoutes.plannerDelete, lookup);
+    data = await response.json();
+    if (response.ok && data.ok) {
+      erased = true;
+    }
+  } catch (e) {
+    // The hosted database is unreachable - the other copies are still erased
+  }
+  if (await deletePlanFromCloud(lookup.year, lookup.month, lookup.weekNumber)) {
+    erased = true;
+  }
+  return erased;
 }
 
 function sortedPlansOldestFirst(plans) {
@@ -2159,6 +2270,20 @@ async function handleSavePlan() {
   setPlannerStatus("Saving this week...");
   try {
     payload = plannerPayload();
+    if (plannerPayloadIsEmpty(payload)) {
+      var weekErased = await erasePlanEverywhere(selectedWeekLookup());
+      removedAttachmentFields = {};
+      currentAttachments = {};
+      plannerDirty = false;
+      setPlannerStatus(
+        weekErased
+          ? "This week is now empty, so the saved copy was erased."
+          : "This week is empty, so there is nothing to save.",
+        "success"
+      );
+      await refreshSavedWeeksDropdown();
+      return;
+    }
     if (selectedAttachmentByteTotal() <= maxServerSaveUploadBytes) {
       attachments = await collectAttachmentsForStorage();
       try {
@@ -2380,6 +2505,8 @@ var linkFieldsContainer = document.querySelector("#linkFieldsContainer");
 var loadActivityButton = document.querySelector("#loadActivityButton");
 var saveActivityButton = document.querySelector("#saveActivityButton");
 var applyActivityTemplateButton = document.querySelector("#applyActivityTemplateButton");
+var copyFromDateSelect = document.querySelector("#copyFromDateSelect");
+var clearActivityButton = document.querySelector("#clearActivityButton");
 var downloadActivityDatabaseButton = document.querySelector("#downloadActivityDatabaseButton");
 var activityStatus = document.querySelector("#activityStatus");
 
@@ -2465,6 +2592,22 @@ function loadAllActivitiesFromIndexedDb() {
       };
       request.onsuccess = function () {
         resolve(request.result || []);
+      };
+    });
+  });
+}
+
+function deleteActivityFromIndexedDb(date) {
+  return initActivityDatabase().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var transaction = db.transaction([activityStoreName], "readwrite");
+      var store = transaction.objectStore(activityStoreName);
+      var request = store.delete(date);
+      request.onerror = function () {
+        reject(new Error("Could not erase this date."));
+      };
+      request.onsuccess = function () {
+        resolve(true);
       };
     });
   });
@@ -2563,12 +2706,8 @@ function resetActivityForm() {
   currentActivityData = null;
 }
 
-async function loadSelectedActivityIntoForm() {
-  var date = activityDateInput.value;
-  if (!date) {
-    resetActivityForm();
-    return false;
-  }
+// Look one saved date up on this device, falling back to the cloud copy.
+async function fetchActivityRecord(date) {
   var record = await loadActivityFromIndexedDb(date);
   if (!record && authToken && authUser) {
     try {
@@ -2581,17 +2720,94 @@ async function loadSelectedActivityIntoForm() {
       // cloud load failed, continue with local miss
     }
   }
+  return record || null;
+}
+
+// Draw one record's text into the three field sections. Passing null gives the
+// blank starting point for a date that has nothing saved yet.
+function renderActivityRecordFields(record) {
+  var links = record && record.links && record.links.length ? record.links : defaultLinks.slice();
+  renderSectionFields(activityFieldsContainer, (record && record.activities) || [], "Activity");
+  renderSectionFields(skillFieldsContainer, (record && record.skills) || [], "Skill");
+  renderSectionFields(linkFieldsContainer, links, "Link");
+}
+
+async function loadSelectedActivityIntoForm() {
+  var date = activityDateInput.value;
+  if (!date) {
+    resetActivityForm();
+    return false;
+  }
+  var record = await fetchActivityRecord(date);
   if (!record) {
-    renderSectionFields(activityFieldsContainer, [], "Activity");
-    renderSectionFields(skillFieldsContainer, [], "Skill");
-    renderSectionFields(linkFieldsContainer, defaultLinks.slice(), "Link");
+    renderActivityRecordFields(null);
     return false;
   }
   currentActivityData = record;
-  renderSectionFields(activityFieldsContainer, record.activities || [], "Activity");
-  renderSectionFields(skillFieldsContainer, record.skills || [], "Skill");
-  renderSectionFields(linkFieldsContainer, record.links && record.links.length ? record.links : defaultLinks.slice(), "Link");
+  renderActivityRecordFields(record);
   return true;
+}
+
+// Pull another saved date's text into the date that is currently selected, so a
+// repeated day only has to be typed once. Nothing is written until "Save Data".
+async function handleCopyFromDatePicked() {
+  var date = copyFromDateSelect.value;
+  var label = copyFromDateSelect.options[copyFromDateSelect.selectedIndex].textContent;
+  copyFromDateSelect.value = "";
+  if (!date) {
+    return;
+  }
+  if (!activityDateInput.value) {
+    setActivityStatus("Pick the date you want to copy into first.", "error");
+    return;
+  }
+  if (date === activityDateInput.value) {
+    setActivityStatus("That is the date you are already editing.");
+    return;
+  }
+  if (!window.confirm("Replace everything on this date with the data from " + label + "?")) {
+    return;
+  }
+  setActivityStatus("Copying " + label + "...");
+  try {
+    var record = await fetchActivityRecord(date);
+    if (!record) {
+      setActivityStatus("That saved date could not be found.", "error");
+      return;
+    }
+    renderActivityRecordFields(record);
+    activityDirty = true;
+    setActivityStatus("Copied " + label + " into this date. Click \"Save Data\" to keep it.", "success");
+  } catch (error) {
+    setActivityStatus(error.message || "Could not copy that date.", "error");
+  }
+}
+
+function handleClearActivity() {
+  if (!window.confirm("Clear every field for this date? Click \"Save Data\" afterwards to erase the saved copy too.")) {
+    return;
+  }
+  renderSectionFields(activityFieldsContainer, [], "Activity");
+  renderSectionFields(skillFieldsContainer, [], "Skill");
+  renderSectionFields(linkFieldsContainer, [], "Link");
+  activityDirty = true;
+  setActivityStatus("This date was cleared. Click \"Save Data\" to erase the saved copy too.", "success");
+}
+
+// True when nothing is left on this date. Saving it then erases the saved copy
+// instead of keeping a blank record in the saved-date list.
+function activityPayloadIsEmpty(payload) {
+  function anyText(values) {
+    var i;
+    var list = values || [];
+    for (i = 0; i < list.length; i += 1) {
+      if (list[i]) {
+        return true;
+      }
+    }
+    return false;
+  }
+  return !anyText(payload.activities) && !anyText(payload.skills) && !anyText(payload.links);
 }
 
 async function handleLoadActivity() {
@@ -2657,6 +2873,95 @@ async function loadActivityFromCloud(date) {
   return null;
 }
 
+async function listActivitiesFromCloud() {
+  await ensureFreshToken();
+  if (!authToken || !authUser) {
+    return [];
+  }
+  try {
+    var response = await fetch("/api/activity-descriptor-sync-list", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken },
+      body: "{}",
+    });
+    var data = await response.json();
+    if (response.ok && data.activities) {
+      return data.activities;
+    }
+  } catch (e) {
+    // Cloud list failed silently - saved dates on this device still show
+  }
+  return [];
+}
+
+async function deleteActivityFromCloud(date) {
+  await ensureFreshToken();
+  if (!authToken || !authUser) {
+    return false;
+  }
+  try {
+    var response = await fetch("/api/activity-descriptor-sync-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken },
+      body: JSON.stringify({ date: date }),
+    });
+    var data = await response.json();
+    return Boolean(response.ok && data.ok);
+  } catch (e) {
+    // Cloud delete failed silently - the local copy is still erased
+  }
+  return false;
+}
+
+// A saved date only really disappears when it is gone from this browser and
+// from the signed-in cloud copy.
+async function eraseActivityEverywhere(date) {
+  var erased = false;
+  if (!date) {
+    return false;
+  }
+  try {
+    if (await loadActivityFromIndexedDb(date)) {
+      erased = true;
+    }
+    await deleteActivityFromIndexedDb(date);
+  } catch (e) {
+    // No local copy to erase
+  }
+  if (await deleteActivityFromCloud(date)) {
+    erased = true;
+  }
+  return erased;
+}
+
+// Fill the "Copy Data From Date" dropdown with every saved date (local + cloud),
+// newest first, the same way the planner lists its saved weeks.
+async function refreshSavedDatesDropdown() {
+  if (!copyFromDateSelect) {
+    return;
+  }
+  var byDate = {};
+  function collect(record) {
+    if (record && record.date) {
+      byDate[record.date] = record;
+    }
+  }
+  try {
+    (await loadAllActivitiesFromIndexedDb()).forEach(collect);
+  } catch (e) {
+    // No local database yet
+  }
+  (await listActivitiesFromCloud()).forEach(collect);
+
+  var dates = Object.keys(byDate).sort().reverse();
+  copyFromDateSelect.innerHTML = "";
+  copyFromDateSelect.appendChild(option("Copy Data From Date", ""));
+  dates.forEach(function (date) {
+    copyFromDateSelect.appendChild(option(formatIsoToDisplay(date) || date, date));
+  });
+  copyFromDateSelect.value = "";
+}
+
 async function syncAllLocalActivitiesToCloud() {
   if (!authToken || !authUser) {
     return;
@@ -2684,12 +2989,26 @@ async function handleSaveActivity() {
     if (!payload.date) {
       throw new Error("Please enter a date.");
     }
+    if (activityPayloadIsEmpty(payload)) {
+      var dateErased = await eraseActivityEverywhere(payload.date);
+      currentActivityData = null;
+      activityDirty = false;
+      setActivityStatus(
+        dateErased
+          ? "This date is now empty, so the saved copy was erased."
+          : "This date is empty, so there is nothing to save.",
+        "success"
+      );
+      await refreshSavedDatesDropdown();
+      return;
+    }
     record = JSON.parse(JSON.stringify(payload));
     await saveActivityToIndexedDb(record);
     currentActivityData = record;
     syncActivityToCloud(record);
     activityDirty = false;
     setActivityStatus("Activity saved." + (authToken && authUser ? " Syncing to cloud..." : ""), "success");
+    refreshSavedDatesDropdown();
   } catch (error) {
     setActivityStatus(error.message || "Could not save the activity.", "error");
   } finally {
@@ -2750,6 +3069,7 @@ function initializeActivityDescriptor() {
     return;
   }
   resetActivityForm();
+  refreshSavedDatesDropdown();
 
   if (addSkillFieldButton) {
     addSkillFieldButton.addEventListener("click", function (e) {
@@ -2767,6 +3087,14 @@ function initializeActivityDescriptor() {
 
   if (loadActivityButton) {
     loadActivityButton.addEventListener("click", handleLoadActivity);
+  }
+
+  if (copyFromDateSelect) {
+    copyFromDateSelect.addEventListener("change", handleCopyFromDatePicked);
+  }
+
+  if (clearActivityButton) {
+    clearActivityButton.addEventListener("click", handleClearActivity);
   }
 
   if (saveActivityButton) {

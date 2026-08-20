@@ -67,6 +67,12 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
+        if route == "planner-delete":
+            try:
+                self.handle_planner_delete()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
         if route == "planner-template-save":
             try:
                 self.handle_planner_template_save()
@@ -130,6 +136,12 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
         if route == "activity-descriptor-sync-list":
             try:
                 self.handle_activity_descriptor_sync_list()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+        if route == "activity-descriptor-sync-delete":
+            try:
+                self.handle_activity_descriptor_sync_delete()
             except Exception as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
@@ -234,9 +246,11 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             "lesson-plan-copier",
             "grid-pdf",
             "activity-descriptor-export",
+            "activity-descriptor-sync-delete",
             "planner-save",
             "planner-upload-attachment",
             "planner-load",
+            "planner-delete",
             "planner-template-save",
             "planner-template-load",
             "planner-export-pdf",
@@ -276,6 +290,8 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             return "planner-upload-attachment"
         if path.endswith("/planner-load"):
             return "planner-load"
+        if path.endswith("/planner-delete"):
+            return "planner-delete"
         if path.endswith("/planner-template-save"):
             return "planner-template-save"
         if path.endswith("/planner-template-load"):
@@ -393,6 +409,13 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
             return
         self.send_json({"plan": result})
 
+    def handle_planner_delete(self) -> None:
+        payload = self.read_json_body()
+        ok = planner_db.delete_plan(
+            int(payload["year"]), int(payload["month"]), int(payload["weekNumber"])
+        )
+        self.send_json({"ok": ok})
+
     def handle_planner_template_save(self) -> None:
         fields, files = self.parse_multipart_body()
         payload = json.loads(fields.get("payload", "{}"))
@@ -455,6 +478,12 @@ class TeacherToolsHandler(SimpleHTTPRequestHandler):
         payload = self.read_json_body()
         result = supabase_sync.load_activity(token, str(payload.get("date", "")))
         self.send_json({"activity": result})
+
+    def handle_activity_descriptor_sync_delete(self) -> None:
+        token = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+        payload = self.read_json_body()
+        ok = supabase_sync.delete_activity(token, str(payload.get("date", "")))
+        self.send_json({"ok": ok})
 
     def handle_activity_descriptor_sync_list(self) -> None:
         token = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()

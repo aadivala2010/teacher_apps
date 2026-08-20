@@ -305,6 +305,30 @@ def load_plan(year: int, month: int, week_number: int) -> dict[str, object] | No
         return None
 
 
+def delete_plan(year: int, month: int, week_number: int) -> bool:
+    """Erase a saved week and its attachments. Returns True when a row was removed."""
+    try:
+        init_db()
+        with connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id FROM plans
+                WHERE year = ? AND month = ? AND week_number = ?
+                """,
+                (year, month, week_number),
+            ).fetchone()
+            if not row:
+                return False
+            conn.execute(
+                "DELETE FROM attachments WHERE owner_type = ? AND owner_id = ?",
+                ("plan", row["id"]),
+            )
+            conn.execute("DELETE FROM plans WHERE id = ?", (row["id"],))
+            return True
+    except Exception:
+        return False
+
+
 def save_template(payload: dict[str, object], attachments: dict[str, dict[str, object]]) -> dict[str, object]:
     init_db()
     now = utc_now()

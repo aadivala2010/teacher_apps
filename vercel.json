@@ -35,6 +35,10 @@
       "destination": "/api/index?route=planner-load"
     },
     {
+      "source": "/api/planner-delete",
+      "destination": "/api/index?route=planner-delete"
+    },
+    {
       "source": "/api/planner-template-save",
       "destination": "/api/index?route=planner-template-save"
     },
@@ -119,8 +123,8 @@
       "destination": "/api/index?route=activity-descriptor-sync-list"
     },
     {
-      "source": "/api/activity-descriptor-sync-list",
-      "destination": "/api/index?route=activity-descriptor-sync-list"
+      "source": "/api/activity-descriptor-sync-delete",
+      "destination": "/api/index?route=activity-descriptor-sync-delete"
     }
   ]
 }

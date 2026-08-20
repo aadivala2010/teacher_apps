@@ -79,6 +79,18 @@ def _bucket() -> Any:
     return _admin().storage.from_(_BUCKET_NAME)
 
 
+def _remove_object(path: str) -> bool:
+    """Delete one stored object. Storage clients expect a list of paths, but older
+    ones accept a bare string, so try both before giving up."""
+    for target in ([path], path):
+        try:
+            _bucket().remove(target)
+            return True
+        except Exception:
+            continue
+    return False
+
+
 def sign_up(email: str, password: str) -> dict[str, Any]:
     admin = _admin()
     create_error: Exception | None = None
@@ -234,10 +246,7 @@ def save_plan(access_token: str, payload: dict[str, Any]) -> dict[str, Any]:
     path = _plan_path(user["id"], plan_data["year"], plan_data["month"], plan_data["weekNumber"])
     content = json.dumps(plan_data, ensure_ascii=True).encode("utf-8")
 
-    try:
-        _bucket().remove(path)
-    except Exception:
-        pass
+    _remove_object(path)
 
     try:
         bucket = _bucket()
@@ -312,13 +321,19 @@ def delete_plan(access_token: str, year: int, month: int, week_number: int) -> b
         raise ValueError("Invalid access token.")
     init_bucket()
 
-    path = _plan_path(user["id"], year, month, week_number)
+    removed = _remove_object(_plan_path(user["id"], year, month, week_number))
+
+    # Attachments live in their own per-week folder, so clear those out as well.
+    prefix = f"{user['id']}/attachments/{year}-{month:02d}-{week_number:02d}/"
     try:
-        _bucket().remove(path)
-        return True
+        for obj in _bucket().list(prefix):
+            name = obj.get("name", "") if isinstance(obj, dict) else getattr(obj, "name", "")
+            if name:
+                _remove_object(prefix + str(name))
     except Exception:
         pass
-    return False
+
+    return removed
 
 
 def save_attachment(
@@ -383,10 +398,7 @@ def save_activity(access_token: str, payload: dict[str, Any]) -> dict[str, Any]:
     path = _activity_path(user["id"], activity_data["date"])
     content = json.dumps(activity_data, ensure_ascii=True).encode("utf-8")
 
-    try:
-        _bucket().remove(path)
-    except Exception:
-        pass
+    _remove_object(path)
 
     try:
         _bucket().upload(path, content, {"content-type": "application/json"})
@@ -450,6 +462,15 @@ def list_activities(access_token: str) -> list[dict[str, Any]]:
 
     activities.sort(key=lambda a: a.get("date", ""))
     return activities
+
+
+def delete_activity(access_token: str, date: str) -> bool:
+    user = get_user(access_token)
+    if not user:
+        raise ValueError("Invalid access token.")
+    init_bucket()
+
+    return _remove_object(_activity_path(user["id"], date))
 
 
 def get_attachment(access_token: str, path: str) -> dict[str, Any] | None:

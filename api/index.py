@@ -39,6 +39,9 @@ class handler(BaseHTTPRequestHandler):
             if route == "planner-load":
                 self.handle_planner_load()
                 return
+            if route == "planner-delete":
+                self.handle_planner_delete()
+                return
             if route == "planner-template-save":
                 self.handle_planner_template_save()
                 return
@@ -74,6 +77,9 @@ class handler(BaseHTTPRequestHandler):
                 return
             if route == "activity-descriptor-sync-list":
                 self.handle_activity_descriptor_sync_list()
+                return
+            if route == "activity-descriptor-sync-delete":
+                self.handle_activity_descriptor_sync_delete()
                 return
             if route == "grid-pdf":
                 self.handle_grid_pdf()
@@ -140,11 +146,13 @@ class handler(BaseHTTPRequestHandler):
             "activity-descriptor-sync-save",
             "activity-descriptor-sync-load",
             "activity-descriptor-sync-list",
+            "activity-descriptor-sync-delete",
             "grid-pdf",
             "grid-print-pdf",
             "planner-save",
             "planner-upload-attachment",
             "planner-load",
+            "planner-delete",
             "planner-template-save",
             "planner-template-load",
             "planner-export-pdf",
@@ -183,6 +191,8 @@ class handler(BaseHTTPRequestHandler):
             return "activity-descriptor-sync-load"
         if path.endswith("/activity-descriptor-sync-list"):
             return "activity-descriptor-sync-list"
+        if path.endswith("/activity-descriptor-sync-delete"):
+            return "activity-descriptor-sync-delete"
         if path.endswith("/grid-pdf") or path.endswith("/grid_pdf"):
             return "grid-pdf"
         if path.endswith("/grid-print-pdf") or path.endswith("/grid_print_pdf"):
@@ -193,6 +203,8 @@ class handler(BaseHTTPRequestHandler):
             return "planner-upload-attachment"
         if path.endswith("/planner-load"):
             return "planner-load"
+        if path.endswith("/planner-delete"):
+            return "planner-delete"
         if path.endswith("/planner-template-save"):
             return "planner-template-save"
         if path.endswith("/planner-template-load"):
@@ -319,6 +331,13 @@ class handler(BaseHTTPRequestHandler):
             return
         self.send_json({"plan": result})
 
+    def handle_planner_delete(self) -> None:
+        payload = self.read_json_body()
+        ok = planner_db.delete_plan(
+            int(payload["year"]), int(payload["month"]), int(payload["weekNumber"])
+        )
+        self.send_json({"ok": ok})
+
     def handle_planner_template_save(self) -> None:
         fields, files = self.parse_multipart_body()
         payload = json.loads(fields.get("payload", "{}"))
@@ -372,6 +391,12 @@ class handler(BaseHTTPRequestHandler):
         payload = self.read_json_body()
         result = supabase_sync.load_activity(token, str(payload.get("date", "")))
         self.send_json({"activity": result})
+
+    def handle_activity_descriptor_sync_delete(self) -> None:
+        token = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+        payload = self.read_json_body()
+        ok = supabase_sync.delete_activity(token, str(payload.get("date", "")))
+        self.send_json({"ok": ok})
 
     def handle_activity_descriptor_sync_list(self) -> None:
         token = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
