@@ -183,7 +183,11 @@
 
                 <div class="action-row">
                   <button id="loadActivityButton" class="primary-button" type="button">Load Saved Data</button>
+                  <select id="copyFromActivitySelect" class="primary-button" aria-label="Copy Data From Date">
+                    <option value="">Copy Data From Date</option>
+                  </select>
                   <button id="saveActivityButton" class="primary-button accent" type="button">Save Data</button>
+                  <button id="clearActivityButton" class="secondary-button" type="button">Clear This Date</button>
                   <button id="applyActivityTemplateButton" class="secondary-button" type="button">Apply Data to Template</button>
                   <button id="downloadActivityDatabaseButton" class="secondary-button" type="button">Download Database</button>
                 </div>
@@ -273,7 +277,10 @@
                     <label><input type="radio" name="gridOrientation" value="stack" /> Up and down</label>
                   </div>
                 </div>
-                <button id="gridGenerateButton" class="primary-button accent" type="button">Generate PDF</button>
+                <div class="action-row">
+                  <button id="gridGenerateButton" class="primary-button accent" type="button">Generate PDF</button>
+                  <button id="gridClearButton" class="secondary-button" type="button">Clear Images</button>
+                </div>
                 <p id="gridStatus" class="status-text" role="status" aria-live="polite">Choose a folder or individual images, pick a layout, then generate the PDF.</p>
               </div>
             </section>
@@ -353,7 +360,7 @@
       </section>
     </div>
 
-    <script src="script.js?v=29"></script>
+    <script src="script.js?v=30"></script>
     <script src="autofit.js?v=2"></script>
   </body>
 </html>

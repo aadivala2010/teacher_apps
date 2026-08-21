@@ -28,6 +28,7 @@ var confirmDatabaseDownloadButton = document.querySelector("#confirmDatabaseDown
 var gridImageInput = document.querySelector("#gridImageInput");
 var gridImageFilesInput = document.querySelector("#gridImageFilesInput");
 var gridGenerateButton = document.querySelector("#gridGenerateButton");
+var gridClearButton = document.querySelector("#gridClearButton");
 var gridStatus = document.querySelector("#gridStatus");
 var gridOrientationField = document.querySelector("#gridOrientationField");
 var gridPrintCellsContainer = document.querySelector("#gridPrintCells");
@@ -1808,6 +1809,10 @@ function downloadBlob(blob, filename) {
   var link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  // Safari on iPad/iPhone still ignores a[download] in some setups and navigates
+  // to the blob URL, replacing the app with a PDF viewer that has no back button.
+  // Targeting a new tab means the app keeps its own tab either way.
+  link.target = "_blank";
   link.rel = "noopener";
   document.body.appendChild(link);
   link.click();
@@ -1958,6 +1963,16 @@ async function handleGridGenerate() {
   } finally {
     gridGenerateButton.disabled = false;
   }
+}
+
+function handleGridClear() {
+  if (gridImageInput) {
+    gridImageInput.value = "";
+  }
+  if (gridImageFilesInput) {
+    gridImageFilesInput.value = "";
+  }
+  setGridStatus("Choose a folder or individual images, pick a layout, then generate the PDF.");
 }
 
 function setGridPrintStatus(message, kind) {
@@ -2381,6 +2396,8 @@ var loadActivityButton = document.querySelector("#loadActivityButton");
 var saveActivityButton = document.querySelector("#saveActivityButton");
 var applyActivityTemplateButton = document.querySelector("#applyActivityTemplateButton");
 var downloadActivityDatabaseButton = document.querySelector("#downloadActivityDatabaseButton");
+var copyFromActivitySelect = document.querySelector("#copyFromActivitySelect");
+var clearActivityButton = document.querySelector("#clearActivityButton");
 var activityStatus = document.querySelector("#activityStatus");
 
 var activityDatabaseName = "activityDescriptorDb";
@@ -2671,7 +2688,103 @@ async function syncAllLocalActivitiesToCloud() {
     }
   } catch (e) {
     // silent
+  } finally {
+    refreshSavedActivitiesDropdown();
   }
+}
+
+async function listActivitiesFromCloud() {
+  await ensureFreshToken();
+  if (!authToken || !authUser) {
+    return [];
+  }
+  try {
+    var response = await fetch("/api/activity-descriptor-sync-list", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken },
+      body: "{}",
+    });
+    var data = await response.json();
+    if (response.ok && data.activities) {
+      return data.activities;
+    }
+  } catch (e) {
+    // Cloud list failed silently - the local list still works.
+  }
+  return [];
+}
+
+// Fill the "Copy Data From Date" dropdown with every saved date (local + cloud), newest first.
+async function refreshSavedActivitiesDropdown() {
+  if (!copyFromActivitySelect) {
+    return;
+  }
+  var seen = {};
+  function collect(record) {
+    if (record && record.date) {
+      seen[record.date] = true;
+    }
+  }
+  try {
+    (await loadAllActivitiesFromIndexedDb()).forEach(collect);
+  } catch (e) {
+    // No local database yet
+  }
+  (await listActivitiesFromCloud()).forEach(collect);
+
+  copyFromActivitySelect.innerHTML = "";
+  copyFromActivitySelect.appendChild(option("Copy Data From Date", ""));
+  Object.keys(seen).sort().reverse().forEach(function (date) {
+    copyFromActivitySelect.appendChild(option(date, date));
+  });
+  copyFromActivitySelect.value = "";
+}
+
+// Pull another saved date's data into the date being edited, so a repeated
+// activity only has to be typed once. Nothing is written until "Save Data".
+async function handleCopyFromActivityPicked() {
+  var date = copyFromActivitySelect.value;
+  var record;
+  copyFromActivitySelect.value = "";
+  if (!date) {
+    return;
+  }
+  if (date === activityDateInput.value) {
+    setActivityStatus("That is the date you are already editing.");
+    return;
+  }
+  if (!window.confirm("Replace everything on this date with the data from " + date + "?")) {
+    return;
+  }
+  setActivityStatus("Copying " + date + "...");
+  try {
+    record = await loadActivityFromIndexedDb(date);
+    if (!record) {
+      record = await loadActivityFromCloud(date);
+    }
+    if (!record) {
+      setActivityStatus("That saved date could not be found.", "error");
+      return;
+    }
+    renderSectionFields(activityFieldsContainer, record.activities || [], "Activity");
+    renderSectionFields(skillFieldsContainer, record.skills || [], "Skill");
+    renderSectionFields(linkFieldsContainer, record.links && record.links.length ? record.links : defaultLinks.slice(), "Link");
+    markActivityDirty();
+    setActivityStatus("Copied " + date + " into this date. Click \"Save Data\" to keep it.", "success");
+  } catch (error) {
+    setActivityStatus(error.message || "Could not copy that date.", "error");
+  }
+}
+
+function handleClearActivity() {
+  if (!window.confirm("Clear every field for this date? Click \"Save Data\" afterwards to erase the saved copy too.")) {
+    return;
+  }
+  var date = activityDateInput.value;
+  resetActivityForm();
+  activityDateInput.value = date;
+  markActivityDirty();
+  setActivityStatus("This date was cleared. Click \"Save Data\" to erase the saved copy too.", "success");
 }
 
 async function handleSaveActivity() {
@@ -2689,6 +2802,7 @@ async function handleSaveActivity() {
     currentActivityData = record;
     syncActivityToCloud(record);
     activityDirty = false;
+    refreshSavedActivitiesDropdown();
     setActivityStatus("Activity saved." + (authToken && authUser ? " Syncing to cloud..." : ""), "success");
   } catch (error) {
     setActivityStatus(error.message || "Could not save the activity.", "error");
@@ -2781,6 +2895,16 @@ function initializeActivityDescriptor() {
     downloadActivityDatabaseButton.addEventListener("click", handleDownloadActivityDatabase);
   }
 
+  if (copyFromActivitySelect) {
+    copyFromActivitySelect.addEventListener("change", handleCopyFromActivityPicked);
+  }
+
+  if (clearActivityButton) {
+    clearActivityButton.addEventListener("click", handleClearActivity);
+  }
+
+  refreshSavedActivitiesDropdown();
+
   var previousActivityDateValue = activityDateInput.value;
   activityDateInput.addEventListener("change", function () {
     if (!confirmDiscardChanges(activityDirty, function () { activityDateInput.value = previousActivityDateValue; })) {
@@ -2834,6 +2958,9 @@ function initializePlanner() {
     });
   }
 
+  if (gridClearButton) {
+    gridClearButton.addEventListener("click", handleGridClear);
+  }
   if (gridGenerateButton) {
     gridGenerateButton.addEventListener("click", handleGridGenerate);
   }
