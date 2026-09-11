@@ -125,7 +125,7 @@ class handler(BaseHTTPRequestHandler):
     def _send_exception_response(self, exc: Exception) -> None:
         status = HTTPStatus.BAD_REQUEST if isinstance(exc, ValueError) else HTTPStatus.INTERNAL_SERVER_ERROR
         message = str(exc)
-        if "timed out" in message.lower() or "timeout" in type(exc).__name__.lower():
+        if "timed out" in message.lower() or "timeout" in type(exc).__name__.lower() or "server error '5" in message.lower():
             status = HTTPStatus.GATEWAY_TIMEOUT
             message = "The server took too long to respond. Please wait a moment and try again."
         self.send_json({"error": message}, status)
