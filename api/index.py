@@ -124,7 +124,11 @@ class handler(BaseHTTPRequestHandler):
 
     def _send_exception_response(self, exc: Exception) -> None:
         status = HTTPStatus.BAD_REQUEST if isinstance(exc, ValueError) else HTTPStatus.INTERNAL_SERVER_ERROR
-        self.send_json({"error": str(exc)}, status)
+        message = str(exc)
+        if "timed out" in message.lower() or "timeout" in type(exc).__name__.lower():
+            status = HTTPStatus.GATEWAY_TIMEOUT
+            message = "The server took too long to respond. Please wait a moment and try again."
+        self.send_json({"error": message}, status)
 
     def _dispatch_get(self, route: str) -> None:
         if route == "attachment":

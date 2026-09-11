@@ -19,6 +19,7 @@ _SUPABASE_ANON_KEY: str | None = None
 _SUPABASE_CLIENT: Any = None
 _SUPABASE_SERVICE_CLIENT: Any = None
 _BUCKET_NAME = "plan-storage"
+_HTTP_TIMEOUT_SECONDS = 30
 
 
 def _setup():
@@ -34,12 +35,24 @@ def _setup():
         _SUPABASE_ANON_KEY = _SUPABASE_SERVICE_KEY
 
     try:
+        import httpx
         from supabase import create_client
+        from supabase.lib.client_options import SyncClientOptions
+
+        # The auth client defaults to httpx's 5s timeout, which a cold Vercel
+        # function plus a sleepy Supabase project blows through ("The read
+        # operation timed out" on sign-in). Give every call a real budget.
+        def _options():
+            return SyncClientOptions(
+                httpx_client=httpx.Client(timeout=_HTTP_TIMEOUT_SECONDS),
+                postgrest_client_timeout=_HTTP_TIMEOUT_SECONDS,
+                storage_client_timeout=_HTTP_TIMEOUT_SECONDS,
+            )
 
         if _SUPABASE_CLIENT is None and _SUPABASE_ANON_KEY:
-            _SUPABASE_CLIENT = create_client(_SUPABASE_URL, _SUPABASE_ANON_KEY)
+            _SUPABASE_CLIENT = create_client(_SUPABASE_URL, _SUPABASE_ANON_KEY, options=_options())
         if _SUPABASE_SERVICE_CLIENT is None and _SUPABASE_SERVICE_KEY:
-            _SUPABASE_SERVICE_CLIENT = create_client(_SUPABASE_URL, _SUPABASE_SERVICE_KEY)
+            _SUPABASE_SERVICE_CLIENT = create_client(_SUPABASE_URL, _SUPABASE_SERVICE_KEY, options=_options())
     except Exception:
         pass
 
