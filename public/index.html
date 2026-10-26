@@ -15,7 +15,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css?v=12" />
-    <link rel="stylesheet" href="face-circle.css?v=1" />
+    <link rel="stylesheet" href="face-circle.css?v=2" />
   </head>
   <body>
     <div class="app-frame">
@@ -44,7 +44,7 @@
           </button>
           <button class="app-tab" type="button" data-app-tab="face-circle" aria-selected="false">
             <strong>Face Circle</strong>
-            <span>Center faces in 3-inch circles</span>
+            <span>Size and center photo circles</span>
           </button>
         </nav>
         <div class="sidebar-auth" id="sidebarAuth">
@@ -334,32 +334,48 @@
                 <span class="face-note">Photos stay on this device.</span>
               </div>
               <p id="faceStatus" class="status-text" role="status" aria-live="polite">Select one or more photos to get started.</p>
-              <div class="face-stage">
-                <div class="face-circle-wrap">
-                  <canvas id="faceCanvas" width="900" height="900" tabindex="0" role="img" aria-label="Circular photo crop. Use arrow keys to move the photo." aria-describedby="faceHint"></canvas>
-                  <span id="faceEmpty">Your photo goes here</span>
+              <div class="face-size-control">
+                <div class="face-zoom">
+                  <label for="faceSize">Circle diameter</label>
+                  <input id="faceSize" type="range" min="0.5" max="8" step="0.25" value="3" aria-describedby="faceSizeHint" />
+                  <output id="faceSizeValue" for="faceSize">3 in</output>
                 </div>
-                <p id="faceHint" class="face-note">Drag the photo to center the face. Use zoom for a closer fit.</p>
-                <div id="faceEditor" hidden>
-                  <div class="face-zoom">
-                    <label for="faceZoom">Zoom</label>
-                    <input id="faceZoom" type="range" min="1" max="4" step="0.01" value="1" />
-                    <output id="faceZoomValue" for="faceZoom">100%</output>
+                <p id="faceSizeHint" class="face-note">0.5–8 inches, in 0.25-inch steps. Applies to all photos.</p>
+              </div>
+              <div class="face-workspace">
+                <div class="face-stage">
+                  <div class="face-circle-wrap">
+                    <canvas id="faceCanvas" width="900" height="900" tabindex="0" role="img" aria-label="Circular photo crop. Use arrow keys to move the photo." aria-describedby="faceHint"></canvas>
+                    <span id="faceEmpty">Your photo goes here</span>
                   </div>
-                  <div class="face-adjust" aria-label="Adjust photo position">
-                    <button type="button" data-face-move="left" aria-label="Move photo left">&#8592;</button>
-                    <button type="button" data-face-move="up" aria-label="Move photo up">&#8593;</button>
-                    <button type="button" data-face-move="down" aria-label="Move photo down">&#8595;</button>
-                    <button type="button" data-face-move="right" aria-label="Move photo right">&#8594;</button>
-                    <button id="faceReset" class="secondary-button" type="button">Reset crop</button>
+                  <p id="faceHint" class="face-note">Drag the photo to center the face. Use zoom for a closer fit.</p>
+                  <div id="faceEditor" hidden>
+                    <div class="face-zoom">
+                      <label for="faceZoom">Zoom</label>
+                      <input id="faceZoom" type="range" min="1" max="4" step="0.01" value="1" />
+                      <output id="faceZoomValue" for="faceZoom">100%</output>
+                    </div>
+                    <div class="face-adjust" aria-label="Adjust photo position">
+                      <button type="button" data-face-move="left" aria-label="Move photo left">&#8592;</button>
+                      <button type="button" data-face-move="up" aria-label="Move photo up">&#8593;</button>
+                      <button type="button" data-face-move="down" aria-label="Move photo down">&#8595;</button>
+                      <button type="button" data-face-move="right" aria-label="Move photo right">&#8594;</button>
+                      <button id="faceReset" class="secondary-button" type="button">Reset crop</button>
+                    </div>
+                    <div class="face-navigation">
+                      <button id="facePrevious" class="secondary-button" type="button" aria-label="Previous photo">&#8592; Previous</button>
+                      <span id="faceCounter" role="status" aria-live="polite"></span>
+                      <button id="faceNext" class="secondary-button" type="button" aria-label="Next photo">Next &#8594;</button>
+                    </div>
+                    <p id="faceName" class="face-note"></p>
                   </div>
-                  <div class="face-navigation">
-                    <button id="facePrevious" class="secondary-button" type="button" aria-label="Previous photo">&#8592; Previous</button>
-                    <span id="faceCounter" role="status" aria-live="polite"></span>
-                    <button id="faceNext" class="secondary-button" type="button" aria-label="Next photo">Next &#8594;</button>
-                  </div>
-                  <p id="faceName" class="face-note"></p>
                 </div>
+                <section class="face-page-preview" aria-labelledby="facePreviewHeading">
+                  <h2 id="facePreviewHeading">Page preview</h2>
+                  <p class="face-note">8.5 &times; 11 inches &middot; centered on the page</p>
+                  <canvas id="facePagePreview" width="612" height="792" role="img" aria-label="Letter-size page with a centered 3-inch circle"></canvas>
+                  <p class="face-note">Updates as you resize and reposition the photo.</p>
+                </section>
               </div>
               <div id="faceThumbnails" class="face-thumbnails" aria-label="Selected photos"></div>
               <div class="face-footer">
@@ -368,7 +384,7 @@
                   <button id="faceRemove" class="secondary-button" type="button" disabled>Remove photo</button>
                   <button id="faceClear" class="secondary-button" type="button" disabled>Clear all</button>
                 </div>
-                <p class="face-note">One 3-inch circle centered on each 8.5 &times; 11-inch page. Print at <strong>Actual size / 100%</strong>.</p>
+                <p class="face-note">One <span id="facePrintSize">3</span>-inch circle centered on each 8.5 &times; 11-inch page. Print at <strong>Actual size / 100%</strong>.</p>
               </div>
             </main>
           </div>
@@ -423,6 +439,6 @@
     <script src="script.js?v=30"></script>
     <script src="autofit.js?v=2"></script>
     <script src="vendor/pdf-lib-1.17.1.min.js" defer></script>
-    <script src="face-circle.js?v=1" defer></script>
+    <script src="face-circle.js?v=2" defer></script>
   </body>
 </html>

@@ -15,6 +15,26 @@
 .face-toolbar { justify-content: flex-start; }
 .face-note { color: var(--muted); line-height: 1.6; font-size: 0.9rem; }
 .face-stage { padding: 24px 0 12px; text-align: center; }
+.face-size-control { max-width: 520px; margin: 20px 0; }
+.face-size-control .face-zoom { margin-bottom: 0; }
+.face-size-control .face-note { margin-top: 4px; }
+.face-size-control output { min-width: 64px; text-align: right; }
+.face-workspace { display: grid; gap: 24px; }
+.face-workspace > * { min-width: 0; }
+.face-page-preview { padding: 24px 0; text-align: center; }
+.face-page-preview h2 { font-size: 1.1rem; margin: 0; }
+#facePagePreview {
+  display: block;
+  width: min(100%, 300px);
+  height: auto;
+  margin: 20px auto;
+  background: white;
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-sm);
+}
+@media (min-width: 1100px) {
+  .face-workspace { grid-template-columns: minmax(0, 1fr) minmax(240px, 0.7fr); }
+}
 .face-circle-wrap {
   position: relative;
   width: min(360px, 100%);

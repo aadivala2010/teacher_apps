@@ -4,6 +4,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { chromium } = require('playwright');
+const { PDFDocument } = require('../public/vendor/pdf-lib-1.17.1.min.js');
 
 (async () => {
   const output = path.join(os.tmpdir(), 'teacher-face-circle-test');
@@ -17,6 +18,13 @@ const { chromium } = require('playwright');
     await page.waitForFunction(() => window.PDFLib && document.querySelector('#faceCircleApp:not([hidden])'));
     assert.equal(await page.locator('[data-app-tab]').count(), 5);
     assert.equal(await page.locator('#faceExport').isDisabled(), true);
+    assert.equal(await page.locator('#faceSize').getAttribute('min'), '0.5');
+    assert.equal(await page.locator('#faceSize').getAttribute('step'), '0.25');
+    assert.equal(await page.locator('#faceSize').inputValue(), '3');
+    await page.locator('#faceSize').focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.locator('#faceSize').inputValue(), '3.25');
+    await page.locator('#faceSize').fill('3');
 
     const fixtures = await page.evaluate(() => [false, true].map(portrait => {
       const c = document.createElement('canvas');
@@ -41,6 +49,7 @@ const { chromium } = require('playwright');
     assert.equal(await page.locator('#faceCounter').innerText(), '1 / 2');
     const crop = () => page.locator('#faceCanvas').evaluate(c => c.toDataURL());
     const initial = await crop();
+    const initialPreview = await page.locator('#facePagePreview').evaluate(c => c.toDataURL());
     await page.locator('#faceZoom').fill('1.75');
     const box = await page.locator('#faceCanvas').boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -49,6 +58,7 @@ const { chromium } = require('playwright');
     await page.mouse.up();
     const adjusted = await crop();
     assert.notEqual(initial, adjusted, 'Drag and zoom change the crop');
+    assert.notEqual(await page.locator('#facePagePreview').evaluate(c => c.toDataURL()), initialPreview, 'Page preview tracks crop changes');
     await page.locator('#faceNext').click();
     await page.waitForFunction(() => !document.querySelector('#faceExport').disabled);
     assert.equal(await page.locator('#faceZoom').inputValue(), '1');
@@ -68,6 +78,25 @@ const { chromium } = require('playwright');
     assert.equal(download.suggestedFilename(), 'face-circle.pdf');
     await download.saveAs(path.join(output, 'face-circle.pdf'));
     await page.waitForFunction(() => !document.querySelector('#faceExport').disabled);
+    for (const inches of [0.5, 3.25, 8]) {
+      const beforeResize = await crop();
+      await page.locator('#faceSize').fill(String(inches));
+      assert.equal(await crop(), beforeResize, 'Print size keeps the existing face crop');
+      assert.equal(await page.locator('#faceSizeValue').innerText(), inches + ' in');
+      assert.ok((await page.locator('#facePagePreview').getAttribute('aria-label')).includes(inches + '-inch circle'));
+      const event = page.waitForEvent('download');
+      await page.locator('#faceExport').click();
+      const sizedDownload = await event;
+      const pdfPath = path.join(output, 'face-circle-' + inches + '.pdf');
+      await sizedDownload.saveAs(pdfPath);
+      const pdf = await PDFDocument.load(await fs.readFile(pdfPath));
+      assert.equal(pdf.getPageCount(), 2);
+      pdf.getPages().forEach(p => assert.deepEqual(p.getSize(), { width: 612, height: 792 }));
+      await page.waitForFunction(() => !document.querySelector('#faceExport').disabled);
+      const previewData = await page.locator('#facePagePreview').evaluate(c => c.toDataURL().split(',')[1]);
+      await fs.writeFile(path.join(output, 'preview-' + inches + '.png'), Buffer.from(previewData, 'base64'));
+    }
+    await page.locator('#faceSize').fill('3');
     await page.locator('#faceReset').click();
     assert.equal(await crop(), initial, 'Reset restores the initial crop');
 
@@ -87,6 +116,8 @@ const { chromium } = require('playwright');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       const circle = await page.locator('#faceCanvas').boundingBox();
       assert.ok(circle.x >= 0 && circle.x + circle.width <= viewport.width, 'Circle stays inside the mobile viewport');
+      const previewBox = await page.locator('#facePagePreview').boundingBox();
+      assert.ok(previewBox.x >= 0 && previewBox.x + previewBox.width <= viewport.width, 'Page preview fits mobile viewport');
     }
     await page.setViewportSize({ width: 375, height: 812 });
     await page.screenshot({ path: path.join(output, 'mobile.png'), fullPage: true });
@@ -109,7 +140,7 @@ const { chromium } = require('playwright');
       assert.equal(await page.locator('[data-app-view="' + name + '"]').isVisible(), true);
     }
     assert.deepEqual(errors, []);
-    console.log('PASS: selection, drag, zoom, crop persistence, keyboard, export, reset, invalid input, add/remove, mobile, touch, clear, and all five tabs.');
+    console.log('PASS: selection, drag, zoom, crop persistence, keyboard, page preview, size slider, minimum/fractional/maximum size exports, reset, invalid input, add/remove, mobile, touch, clear, and all five tabs.');
     console.log('Artifacts: ' + output);
   } finally {
     await browser.close();

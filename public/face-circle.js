@@ -7,6 +7,8 @@
   var files = root.querySelector("#faceFiles");
   var status = root.querySelector("#faceStatus");
   var zoom = root.querySelector("#faceZoom");
+  var sizeInput = root.querySelector("#faceSize");
+  var preview = root.querySelector("#facePagePreview");
   var strip = root.querySelector("#faceThumbnails");
   var photos = [];
   var index = 0;
@@ -73,6 +75,31 @@
     paint(canvas, currentImage, photos[index]);
     zoom.value = photos[index].zoom;
     root.querySelector("#faceZoomValue").value = Math.round(photos[index].zoom * 100) + "%";
+    drawPreview();
+  }
+
+  function drawPreview() {
+    var inches = Number(sizeInput.value);
+    var diameter = inches * 72;
+    var ctx = preview.getContext("2d");
+    ctx.clearRect(0, 0, preview.width, preview.height);
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, preview.width, preview.height);
+    if (currentImage) {
+      ctx.drawImage(canvas, (preview.width - diameter) / 2, (preview.height - diameter) / 2, diameter, diameter);
+    } else {
+      ctx.beginPath();
+      ctx.arc(preview.width / 2, preview.height / 2, diameter / 2, 0, Math.PI * 2);
+      ctx.fillStyle = "#f1efe9";
+      ctx.fill();
+      ctx.strokeStyle = "#d8d5cc";
+      ctx.stroke();
+    }
+    root.querySelector("#faceSizeValue").value = inches + " in";
+    root.querySelector("#facePrintSize").textContent = inches;
+    sizeInput.setAttribute("aria-valuetext", inches + " inches");
+    preview.setAttribute("aria-label", "8.5 by 11-inch page with a centered " + inches + "-inch circle" +
+      (photos.length ? ", photo " + (index + 1) + " of " + photos.length : ""));
   }
 
   function controls() {
@@ -85,6 +112,7 @@
     root.querySelector("#facePrevious").disabled = busy || index === 0;
     root.querySelector("#faceNext").disabled = busy || index >= photos.length - 1;
     zoom.disabled = busy || !currentImage;
+    sizeInput.disabled = busy;
     root.querySelectorAll("[data-face-move], #faceReset").forEach(function (button) {
       button.disabled = busy || !currentImage;
     });
@@ -101,6 +129,7 @@
     index = next;
     currentImage = null;
     context.clearRect(0, 0, canvas.width, canvas.height);
+    drawPreview();
     controls();
     if (!photos.length) return;
     try {
@@ -225,6 +254,9 @@
     photos[index].zoom = Number(zoom.value);
     draw();
   });
+  sizeInput.addEventListener("input", function () {
+    if (!busy) drawPreview();
+  });
   root.querySelector("#faceReset").addEventListener("click", function () {
     if (busy || !currentImage) return;
     photos[index].zoom = 1;
@@ -256,19 +288,21 @@
       if (!window.PDFLib) throw new Error("The PDF tool could not load. Refresh the app and try again.");
       var pdf = await PDFLib.PDFDocument.create();
       var output = document.createElement("canvas");
-      output.width = output.height = 900; // 3 inches at 300 pixels per inch.
+      var inches = Number(sizeInput.value);
+      var diameter = inches * 72;
+      output.width = output.height = Math.round(inches * 300);
       for (var i = 0; i < photos.length; i += 1) {
         message("Creating page " + (i + 1) + " of " + photos.length + "…");
         var image = await loadImage(photos[i].url);
         paint(output, image, photos[i]);
         var png = await toBlob(output, "image/png");
         var embedded = await pdf.embedPng(await png.arrayBuffer());
-        // PDF uses 72 points per inch: Letter = 612 x 792; diameter = 216.
+        // PDF uses 72 points per inch. Keep every diameter centered on Letter.
         var page = pdf.addPage([612, 792]);
-        page.drawImage(embedded, { x: 198, y: 288, width: 216, height: 216 });
+        page.drawImage(embedded, { x: (612 - diameter) / 2, y: (792 - diameter) / 2, width: diameter, height: diameter });
       }
       downloadBlob(new Blob([await pdf.save()], { type: "application/pdf" }), "face-circle.pdf");
-      message("PDF exported: " + photos.length + " page(s). Print at Actual size / 100% for 3-inch circles.");
+      message("PDF exported: " + photos.length + " page(s). Print at Actual size / 100% for " + inches + "-inch circles.");
     } catch (error) {
       message(error.message || "Could not export the PDF. Try again with fewer photos.", true);
     } finally {
@@ -277,4 +311,5 @@
     }
   });
   controls();
+  drawPreview();
 }());
