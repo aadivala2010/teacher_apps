@@ -15,6 +15,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css?v=11" />
+    <link rel="stylesheet" href="face-circle.css?v=1" />
   </head>
   <body>
     <div class="app-frame">
@@ -40,6 +41,10 @@
           <button class="app-tab" type="button" data-app-tab="grid-print" aria-selected="false">
             <strong>Grid Print</strong>
             <span>Fill a 3x4 photo grid</span>
+          </button>
+          <button class="app-tab" type="button" data-app-tab="face-circle" aria-selected="false">
+            <strong>Face Circle</strong>
+            <span>Center faces in 3-inch circles</span>
           </button>
         </nav>
         <div class="sidebar-auth" id="sidebarAuth">
@@ -313,6 +318,61 @@
             </section>
           </div>
         </section>
+        <section id="faceCircleApp" class="app-view" data-app-view="face-circle" hidden>
+          <div class="page-shell">
+            <header class="hero-band app-hero">
+              <div class="hero-copy">
+                <p class="eyebrow">Face Circle</p>
+                <h1>Little faces. Perfect circles.</h1>
+                <p class="hero-text">Choose photos, drag each face into place, and export your ready-to-print PDF.</p>
+              </div>
+            </header>
+            <main class="face-tool">
+              <div class="face-toolbar">
+                <button id="faceChoose" class="primary-button" type="button">Select photos</button>
+                <input id="faceFiles" type="file" accept="image/*" multiple hidden />
+                <span class="face-note">Photos stay on this device.</span>
+              </div>
+              <p id="faceStatus" class="status-text" role="status" aria-live="polite">Select one or more photos to get started.</p>
+              <div class="face-stage">
+                <div class="face-circle-wrap">
+                  <canvas id="faceCanvas" width="900" height="900" tabindex="0" role="img" aria-label="Circular photo crop. Use arrow keys to move the photo." aria-describedby="faceHint"></canvas>
+                  <span id="faceEmpty">Your photo goes here</span>
+                </div>
+                <p id="faceHint" class="face-note">Drag the photo to center the face. Use zoom for a closer fit.</p>
+                <div id="faceEditor" hidden>
+                  <div class="face-zoom">
+                    <label for="faceZoom">Zoom</label>
+                    <input id="faceZoom" type="range" min="1" max="4" step="0.01" value="1" />
+                    <output id="faceZoomValue" for="faceZoom">100%</output>
+                  </div>
+                  <div class="face-adjust" aria-label="Adjust photo position">
+                    <button type="button" data-face-move="left" aria-label="Move photo left">&#8592;</button>
+                    <button type="button" data-face-move="up" aria-label="Move photo up">&#8593;</button>
+                    <button type="button" data-face-move="down" aria-label="Move photo down">&#8595;</button>
+                    <button type="button" data-face-move="right" aria-label="Move photo right">&#8594;</button>
+                    <button id="faceReset" class="secondary-button" type="button">Reset crop</button>
+                  </div>
+                  <div class="face-navigation">
+                    <button id="facePrevious" class="secondary-button" type="button" aria-label="Previous photo">&#8592; Previous</button>
+                    <span id="faceCounter" role="status" aria-live="polite"></span>
+                    <button id="faceNext" class="secondary-button" type="button" aria-label="Next photo">Next &#8594;</button>
+                  </div>
+                  <p id="faceName" class="face-note"></p>
+                </div>
+              </div>
+              <div id="faceThumbnails" class="face-thumbnails" aria-label="Selected photos"></div>
+              <div class="face-footer">
+                <div class="action-row">
+                  <button id="faceExport" class="primary-button accent" type="button" disabled>Export PDF</button>
+                  <button id="faceRemove" class="secondary-button" type="button" disabled>Remove photo</button>
+                  <button id="faceClear" class="secondary-button" type="button" disabled>Clear all</button>
+                </div>
+                <p class="face-note">One 3-inch circle centered on each 8.5 &times; 11-inch page. Print at <strong>Actual size / 100%</strong>.</p>
+              </div>
+            </main>
+          </div>
+        </section>
       </div>
     </div>
 
@@ -362,5 +422,7 @@
 
     <script src="script.js?v=30"></script>
     <script src="autofit.js?v=2"></script>
+    <script src="vendor/pdf-lib-1.17.1.min.js" defer></script>
+    <script src="face-circle.js?v=1" defer></script>
   </body>
 </html>
