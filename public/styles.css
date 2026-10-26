@@ -86,6 +86,7 @@ textarea:focus-visible,
   width: 100%;
   min-height: 100vh;
   overflow-x: hidden;
+  background: var(--surface);
 }
 
 .app-sidebar {
@@ -203,6 +204,7 @@ textarea:focus-visible,
 .app-content {
   min-width: 0;
   overflow-x: hidden;
+  background: var(--bg);
 }
 
 .app-view {
