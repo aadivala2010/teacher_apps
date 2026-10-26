@@ -73,20 +73,47 @@
     if (!currentImage || !photos[index]) return;
     clamp(photos[index]);
     paint(canvas, currentImage, photos[index]);
+    paint(photos[index].preview, currentImage, photos[index]);
     zoom.value = photos[index].zoom;
     root.querySelector("#faceZoomValue").value = Math.round(photos[index].zoom * 100) + "%";
     drawPreview();
   }
 
+  function pageLayout(count) {
+    var diameter = Number(sizeInput.value) * 72;
+    var gap = 36; // Half an inch between image edges.
+    var columns = Math.floor((612 + gap) / (diameter + gap));
+    var rows = Math.floor((792 + gap) / (diameter + gap));
+    var capacity = columns * rows;
+    var total = Math.min(count, capacity);
+    var usedRows = Math.ceil(total / columns);
+    var top = (792 - usedRows * diameter - Math.max(0, usedRows - 1) * gap) / 2;
+    var positions = [];
+    for (var i = 0; i < total; i += 1) {
+      var row = Math.floor(i / columns);
+      var rowCount = Math.min(columns, total - row * columns);
+      var left = (612 - rowCount * diameter - (rowCount - 1) * gap) / 2;
+      positions.push({ x: left + (i % columns) * (diameter + gap), y: top + row * (diameter + gap) });
+    }
+    return { diameter: diameter, capacity: capacity, positions: positions };
+  }
+
   function drawPreview() {
     var inches = Number(sizeInput.value);
-    var diameter = inches * 72;
+    var capacity = pageLayout(0).capacity;
+    var pageIndex = Math.floor(index / capacity);
+    var start = pageIndex * capacity;
+    var layout = pageLayout(photos.length ? photos.length - start : 1);
+    var diameter = layout.diameter;
     var ctx = preview.getContext("2d");
     ctx.clearRect(0, 0, preview.width, preview.height);
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, preview.width, preview.height);
-    if (currentImage) {
-      ctx.drawImage(canvas, (preview.width - diameter) / 2, (preview.height - diameter) / 2, diameter, diameter);
+    if (photos.length) {
+      layout.positions.forEach(function (position, i) {
+        var source = start + i === index && currentImage ? canvas : photos[start + i].preview;
+        ctx.drawImage(source, position.x, position.y, diameter, diameter);
+      });
     } else {
       ctx.beginPath();
       ctx.arc(preview.width / 2, preview.height / 2, diameter / 2, 0, Math.PI * 2);
@@ -97,9 +124,11 @@
     }
     root.querySelector("#faceSizeValue").value = inches + " in";
     root.querySelector("#facePrintSize").textContent = inches;
+    root.querySelector("#facePageSummary").textContent = capacity + " per page · 0.5-inch gaps" +
+      (photos.length ? " · Page " + (pageIndex + 1) + " of " + Math.ceil(photos.length / capacity) : "");
     sizeInput.setAttribute("aria-valuetext", inches + " inches");
-    preview.setAttribute("aria-label", "8.5 by 11-inch page with a centered " + inches + "-inch circle" +
-      (photos.length ? ", photo " + (index + 1) + " of " + photos.length : ""));
+    preview.setAttribute("aria-label", "8.5 by 11-inch page with " + inches + "-inch circles and 0.5-inch gaps" +
+      (photos.length ? ", page " + (pageIndex + 1) + " of " + Math.ceil(photos.length / capacity) : ""));
   }
 
   function controls() {
@@ -194,8 +223,9 @@
         var photo = { name: file.name, width: prepared.width, height: prepared.height,
           url: URL.createObjectURL(blob), zoom: 1, x: 0, y: 0 };
         var thumb = document.createElement("canvas");
-        thumb.width = thumb.height = 96;
+        thumb.width = thumb.height = 300;
         paint(thumb, prepared, photo);
+        photo.preview = thumb;
         photo.thumbnail = thumb.toDataURL("image/png");
         photos.push(photo);
         prepared.width = prepared.height = 0;
@@ -291,18 +321,26 @@
       var inches = Number(sizeInput.value);
       var diameter = inches * 72;
       output.width = output.height = Math.round(inches * 300);
+      var capacity = pageLayout(0).capacity;
+      var pageCount = Math.ceil(photos.length / capacity);
+      var page;
+      var layout;
       for (var i = 0; i < photos.length; i += 1) {
-        message("Creating page " + (i + 1) + " of " + photos.length + "…");
+        if (i % capacity === 0) {
+          page = pdf.addPage([612, 792]);
+          layout = pageLayout(photos.length - i);
+        }
+        message("Preparing photo " + (i + 1) + " of " + photos.length + "…");
         var image = await loadImage(photos[i].url);
         paint(output, image, photos[i]);
         var png = await toBlob(output, "image/png");
         var embedded = await pdf.embedPng(await png.arrayBuffer());
-        // PDF uses 72 points per inch. Keep every diameter centered on Letter.
-        var page = pdf.addPage([612, 792]);
-        page.drawImage(embedded, { x: (612 - diameter) / 2, y: (792 - diameter) / 2, width: diameter, height: diameter });
+        // Preview uses top-down coordinates; PDF uses bottom-up coordinates.
+        var position = layout.positions[i % capacity];
+        page.drawImage(embedded, { x: position.x, y: 792 - position.y - diameter, width: diameter, height: diameter });
       }
       downloadBlob(new Blob([await pdf.save()], { type: "application/pdf" }), "face-circle.pdf");
-      message("PDF exported: " + photos.length + " page(s). Print at Actual size / 100% for " + inches + "-inch circles.");
+      message("PDF exported: " + photos.length + " photos on " + pageCount + " page(s), with 0.5-inch gaps. Print at Actual size / 100% for " + inches + "-inch circles.");
     } catch (error) {
       message(error.message || "Could not export the PDF. Try again with fewer photos.", true);
     } finally {

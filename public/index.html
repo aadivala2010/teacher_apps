@@ -374,8 +374,9 @@
                 </div>
                 <section class="face-page-preview" aria-labelledby="facePreviewHeading">
                   <h2 id="facePreviewHeading">Page preview</h2>
-                  <p class="face-note">8.5 &times; 11 inches &middot; centered on the page</p>
-                  <canvas id="facePagePreview" width="612" height="792" role="img" aria-label="Letter-size page with a centered 3-inch circle"></canvas>
+                  <p class="face-note">8.5 &times; 11 inches &middot; centered rows</p>
+                  <canvas id="facePagePreview" width="612" height="792" role="img" aria-label="Letter-size page preview"></canvas>
+                  <p id="facePageSummary" class="face-note" role="status" aria-live="polite"></p>
                   <p class="face-note">Updates as you resize and reposition the photo.</p>
                 </section>
               </div>
@@ -386,7 +387,7 @@
                   <button id="faceRemove" class="secondary-button" type="button" disabled>Remove photo</button>
                   <button id="faceClear" class="secondary-button" type="button" disabled>Clear all</button>
                 </div>
-                <p class="face-note">One <span id="facePrintSize">3</span>-inch circle centered on each 8.5 &times; 11-inch page. Print at <strong>Actual size / 100%</strong>.</p>
+                <p class="face-note"><span id="facePrintSize">3</span>-inch circles packed onto 8.5 &times; 11-inch pages with 0.5-inch gaps. Print at <strong>Actual size / 100%</strong>.</p>
               </div>
             </main>
           </div>
@@ -441,6 +442,6 @@
     <script src="script.js?v=30"></script>
     <script src="autofit.js?v=2"></script>
     <script src="vendor/pdf-lib-1.17.1.min.js" defer></script>
-    <script src="face-circle.js?v=2" defer></script>
+    <script src="face-circle.js?v=3" defer></script>
   </body>
 </html>
